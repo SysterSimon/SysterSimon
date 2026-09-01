@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>APL-fördelning</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 1200px;
+      margin: 32px auto;
+      padding: 0 16px 48px;
+      color: #222;
+      background: #fafafa;
+    }
+
+    h1 { margin-bottom: 6px; }
+    h2 { margin-top: 30px; }
+
+    .box {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px solid #e5e5e5;
+      vertical-align: top;
+    }
+
+    input, select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 7px 8px;
+      border: 1px solid #bbb;
+      border-radius: 5px;
+      background: white;
+    }
+
+    input[type="number"] { min-width: 70px; }
+
+    button {
+      padding: 8px 12px;
+      margin-top: 10px;
+      margin-right: 6px;
+      border: 1px solid #aaa;
+      border-radius: 6px;
+      background: white;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: #222;
+      color: white;
+      border-color: #222;
+    }
+
+    button.danger {
+      color: #8b0000;
+    }
+
+    .small {
+      color: #666;
+      font-size: 0.9rem;
+    }
+
+    .result-first { font-weight: 700; }
+    .result-second { font-weight: 600; }
+    .result-none { color: #8b0000; }
+
+    .summary {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: #f2f2f2;
+      border-radius: 6px;
+    }
+
+    @media (max-width: 760px) {
+      body { margin-top: 16px; }
+      table, thead, tbody, th, td, tr { display: block; }
+      thead { display: none; }
+      tr {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 8px;
+        margin-bottom: 10px;
+      }
+      td {
+        border: 0;
+        padding: 5px 0;
+      }
+      td::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 0.8rem;
+        color: #666;
+        margin-bottom: 2px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>APL-fördelning</h1>
+  <div class="small">Lägg in platser och elever. Sidan sparar automatiskt uppgifterna i den här webbläsaren.</div>
+
+  <h2>1. APL-platser</h2>
+  <div class="box">
+    <table>
+      <thead>
+        <tr>
+          <th>APL-plats</th>
+          <th style="width:120px">Antal platser</th>
+          <th style="width:90px"></th>
+        </tr>
+      </thead>
+      <tbody id="placesBody"></tbody>
+    </table>
+    <button type="button" onclick="addPlace()">+ Lägg till APL-plats</button>
+  </div>
+
+  <h2>2. Elever</h2>
+  <div class="box">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:18%">Elev</th>
+          <th style="width:18%">Förstahandsval</th>
+          <th style="width:18%">Andrahandsval</th>
+          <th>Fritext</th>
+          <th style="width:18%">Tilldelning</th>
+          <th style="width:90px"></th>
+        </tr>
+      </thead>
+      <tbody id="studentsBody"></tbody>
+    </table>
+    <button type="button" onclick="addStudent()">+ Lägg till elev</button>
+  </div>
+
+  <h2>3. Fördela</h2>
+  <div class="box">
+    <button type="button" class="primary" onclick="allocate()">Fördela platser</button>
+    <button type="button" onclick="clearAssignments()">Rensa tilldelning</button>
+    <button type="button" class="danger" onclick="clearEverything()">Rensa allt</button>
+    <div id="summary" class="summary">Ingen fördelning gjord ännu.</div>
+  </div>
+
+<script>
+  const STORAGE_KEY = "apl-fordelning-v1";
+
+  let places = [];
+  let students = [];
+
+  function uid() {
+    return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
+  function load() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (saved) {
+        places = Array.isArray(saved.places) ? saved.places : [];
+        students = Array.isArray(saved.students) ? saved.students : [];
+      }
+    } catch (_) {}
+
+    if (!places.length) addPlace(false);
+    if (!students.length) addStudent(false);
+    render();
+  }
+
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ places, students }));
+  }
+
+  function addPlace(doRender = true) {
+    places.push({ id: uid(), name: "", capacity: 1 });
+    if (doRender) {
+      clearAssignments(false);
+      render();
+      save();
+    }
+  }
+
+  function removePlace(id) {
+    places = places.filter(p => p.id !== id);
+    students.forEach(s => {
+      if (s.first === id) s.first = "";
+      if (s.second === id) s.second = "";
+      if (s.assigned === id) {
+        s.assigned = "";
+        s.assignmentType = "";
+      }
+    });
+    render();
+    save();
+  }
+
+  function addStudent(doRender = true) {
+    students.push({
+      id: uid(),
+      name: "",
+      first: "",
+      second: "",
+      note: "",
+      assigned: "",
+      assignmentType: ""
+    });
+    if (doRender) {
+      render();
+      save();
+    }
+  }
+
+  function removeStudent(id) {
+    students = students.filter(s => s.id !== id);
+    render();
+    save();
+  }
+
+  function updatePlace(id, field, value) {
+    const p = places.find(x => x.id === id);
+    if (!p) return;
+    p[field] = field === "capacity" ? Math.max(0, Number(value) || 0) : value;
+    clearAssignments(false);
+    renderStudents();
+    updateSummaryDefault();
+    save();
+  }
+
+  function updateStudent(id, field, value) {
+    const s = students.find(x => x.id === id);
+    if (!s) return;
+    s[field] = value;
+
+    if (field === "first" && s.second === value) s.second = "";
+    if (field === "second" && s.first === value) s.first = "";
+
+    s.assigned = "";
+    s.assignmentType = "";
+    renderStudents();
+    updateSummaryDefault();
+    save();
+  }
+
+  function placeOptions(selected, exclude = "") {
+    let html = '<option value="">— välj —</option>';
+    for (const p of places) {
+      if (p.id === exclude) continue;
+      html += `<option value="${escapeAttr(p.id)}" ${p.id === selected ? "selected" : ""}>${escapeHtml(p.name || "Namnlös plats")}</option>`;
+    }
+    return html;
+  }
+
+  function render() {
+    renderPlaces();
+    renderStudents();
+  }
+
+  function renderPlaces() {
+    const body = document.getElementById("placesBody");
+    body.innerHTML = places.map(p => `
+      <tr>
+        <td data-label="APL-plats">
+          <input value="${escapeAttr(p.name)}" placeholder="T.ex. Hemtjänst Norr"
+            onchange="updatePlace('${p.id}', 'name', this.value)">
+        </td>
+        <td data-label="Antal platser">
+          <input type="number" min="0" step="1" value="${p.capacity}"
+            onchange="updatePlace('${p.id}', 'capacity', this.value)">
+        </td>
+        <td data-label="">
+          <button type="button" class="danger" onclick="removePlace('${p.id}')">Ta bort</button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  function renderStudents() {
+    const body = document.getElementById("studentsBody");
+    body.innerHTML = students.map(s => {
+      const assignedPlace = places.find(p => p.id === s.assigned);
+      let result = "—";
+      let cls = "";
+
+      if (assignedPlace) {
+        result = assignedPlace.name || "Namnlös plats";
+        if (s.assignmentType === "first") {
+          result += " (1:a)";
+          cls = "result-first";
+        } else if (s.assignmentType === "second") {
+          result += " (2:a)";
+          cls = "result-second";
+        }
+      } else if (s.assignmentType === "none") {
+        result = "Ej placerad";
+        cls = "result-none";
+      }
+
+      return `
+        <tr>
+          <td data-label="Elev">
+            <input value="${escapeAttr(s.name)}" placeholder="Elevens namn"
+              onchange="updateStudent('${s.id}', 'name', this.value)">
+          </td>
+          <td data-label="Förstahandsval">
+            <select onchange="updateStudent('${s.id}', 'first', this.value)">
+              ${placeOptions(s.first, s.second)}
+            </select>
+          </td>
+          <td data-label="Andrahandsval">
+            <select onchange="updateStudent('${s.id}', 'second', this.value)">
+              ${placeOptions(s.second, s.first)}
+            </select>
+          </td>
+          <td data-label="Fritext">
+            <input value="${escapeAttr(s.note)}" placeholder="T.ex. önskemål, transport, tidigare APL..."
+              onchange="updateStudent('${s.id}', 'note', this.value)">
+          </td>
+          <td data-label="Tilldelning" class="${cls}">${escapeHtml(result)}</td>
+          <td data-label="">
+            <button type="button" class="danger" onclick="removeStudent('${s.id}')">Ta bort</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function clearAssignments(doRender = true) {
+    students.forEach(s => {
+      s.assigned = "";
+      s.assignmentType = "";
+    });
+    if (doRender) {
+      renderStudents();
+      updateSummaryDefault();
+      save();
+    }
+  }
+
+  function clearEverything() {
+    if (!confirm("Rensa alla APL-platser, elever och val?")) return;
+    places = [];
+    students = [];
+    addPlace(false);
+    addStudent(false);
+    localStorage.removeItem(STORAGE_KEY);
+    render();
+    updateSummaryDefault();
+    save();
+  }
+
+  function updateSummaryDefault() {
+    document.getElementById("summary").textContent = "Ingen aktuell fördelning.";
+  }
+
+  // Min-cost max-flow:
+  // 1:a val kostar 0, 2:a val kostar 1.
+  // Oplacerad elev får en mycket högre kostnad.
+  // Därmed maximeras först antalet placerade elever och därefter antalet förstahandsval.
+  function allocate() {
+    clearAssignments(false);
+
+    const activePlaces = places
+      .map((p, index) => ({ ...p, originalIndex: index, capacity: Math.max(0, Number(p.capacity) || 0) }))
+      .filter(p => p.capacity > 0);
+
+    const placeNodeById = new Map();
+    const nStudents = students.length;
+    const source = 0;
+    const studentStart = 1;
+    const placeStart = studentStart + nStudents;
+    const sink = placeStart + activePlaces.length;
+    const graph = Array.from({ length: sink + 1 }, () => []);
+
+    function addEdge(from, to, cap, cost, meta = null) {
+      const forward = { to, rev: graph[to].length, cap, cost, meta };
+      const reverse = { to: from, rev: graph[from].length, cap: 0, cost: -cost, meta: null };
+      graph[from].push(forward);
+      graph[to].push(reverse);
+      return forward;
+    }
+
+    activePlaces.forEach((p, i) => {
+      const node = placeStart + i;
+      placeNodeById.set(p.id, node);
+      addEdge(node, sink, p.capacity, 0);
+    });
+
+    const preferenceEdges = Array.from({ length: nStudents }, () => []);
+    const unassignedPenalty = nStudents + 1;
+
+    students.forEach((s, i) => {
+      const studentNode = studentStart + i;
+      addEdge(source, studentNode, 1, 0);
+
+      if (s.first && placeNodeById.has(s.first)) {
+        const edge = addEdge(studentNode, placeNodeById.get(s.first), 1, 0, {
+          kind: "choice", placeId: s.first, type: "first"
+        });
+        preferenceEdges[i].push(edge);
+      }
+
+      if (s.second && s.second !== s.first && placeNodeById.has(s.second)) {
+        const edge = addEdge(studentNode, placeNodeById.get(s.second), 1, 1, {
+          kind: "choice", placeId: s.second, type: "second"
+        });
+        preferenceEdges[i].push(edge);
+      }
+
+      addEdge(studentNode, sink, 1, unassignedPenalty, { kind: "unassigned" });
+    });
+
+    // SPFA is deliberately used here because reverse edges can have negative cost.
+    for (let flow = 0; flow < nStudents; flow++) {
+      const dist = Array(graph.length).fill(Infinity);
+      const inQueue = Array(graph.length).fill(false);
+      const prevNode = Array(graph.length).fill(-1);
+      const prevEdge = Array(graph.length).fill(-1);
+
+      dist[source] = 0;
+      const queue = [source];
+      inQueue[source] = true;
+
+      while (queue.length) {
+        const v = queue.shift();
+        inQueue[v] = false;
+
+        for (let ei = 0; ei < graph[v].length; ei++) {
+          const e = graph[v][ei];
+          if (e.cap <= 0) continue;
+          const nd = dist[v] + e.cost;
+          if (nd < dist[e.to]) {
+            dist[e.to] = nd;
+            prevNode[e.to] = v;
+            prevEdge[e.to] = ei;
+            if (!inQueue[e.to]) {
+              queue.push(e.to);
+              inQueue[e.to] = true;
+            }
+          }
+        }
+      }
+
+      if (!Number.isFinite(dist[sink])) break;
+
+      let v = sink;
+      while (v !== source) {
+        const pv = prevNode[v];
+        const ei = prevEdge[v];
+        const e = graph[pv][ei];
+        e.cap -= 1;
+        graph[v][e.rev].cap += 1;
+        v = pv;
+      }
+    }
+
+    let firstCount = 0;
+    let secondCount = 0;
+    let noneCount = 0;
+
+    students.forEach((s, i) => {
+      const used = preferenceEdges[i].find(edge => edge.cap === 0);
+      if (used && used.meta) {
+        s.assigned = used.meta.placeId;
+        s.assignmentType = used.meta.type;
+        if (used.meta.type === "first") firstCount++;
+        else secondCount++;
+      } else {
+        s.assigned = "";
+        s.assignmentType = "none";
+        noneCount++;
+      }
+    });
+
+    renderStudents();
+    save();
+
+    const totalCapacity = activePlaces.reduce((sum, p) => sum + p.capacity, 0);
+    document.getElementById("summary").textContent =
+      `Resultat: ${firstCount} förstahandsval, ${secondCount} andrahandsval, ${noneCount} ej placerade. ` +
+      `Totalt ${nStudents} elever och ${totalCapacity} tillgängliga APL-platser.`;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function escapeAttr(value) {
+    return escapeHtml(value);
+  }
+
+  load();
+</script>
+</body>
+</html>
