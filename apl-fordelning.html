@@ -1,509 +1,1276 @@
 <!doctype html>
 <html lang="sv">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>APL-fördelning</title>
-  <style>
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      max-width: 1200px;
-      margin: 32px auto;
-      padding: 0 16px 48px;
-      color: #222;
-      background: #fafafa;
-    }
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>APL-fördelning</title>
+<style>
+:root{
+  --page:#eef1f5;
+  --panel:#ffffff;
+  --text:#1f2933;
+  --muted:#667085;
+  --line:#d7dde5;
+  --primary:#285f91;
+  --primary-dark:#1e4b75;
 
-    h1 { margin-bottom: 6px; }
-    h2 { margin-top: 30px; }
+  --first:#237a45;
+  --first-bg:#eaf6ee;
+  --second:#8a6400;
+  --second-bg:#fff4cf;
+  --manual:#2467a5;
+  --manual-bg:#eaf3fb;
+  --none:#667085;
+  --none-bg:#f1f3f5;
+  --conflict:#a93232;
+  --conflict-bg:#fdecec;
+  --locked:#6045a5;
+  --locked-bg:#f0ecfb;
 
-    .box {
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 16px;
-      margin-top: 12px;
-    }
+  --health:#2d6ea3;
+  --lss:#7654a6;
+  --psych:#a44d6f;
+  --other:#65717f;
+}
+*{box-sizing:border-box}
+html{background:var(--page)}
+body{
+  margin:0;
+  color:var(--text);
+  background:var(--page);
+  font:14px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.app{max-width:1180px;margin:0 auto;padding:18px}
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
+.app-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:12px;
+}
+.title-block h1{margin:0;font-size:24px;line-height:1.15}
+.title-block p{margin:5px 0 0;color:var(--muted);font-size:13px}
+.header-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.btn{
+  min-height:36px;
+  padding:7px 11px;
+  border:1px solid #b7c0cb;
+  border-radius:7px;
+  background:#fff;
+  color:#303844;
+  font-weight:600;
+}
+.btn:hover{background:#f8fafc}
+.btn-primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-danger{color:#9e2d2d}
+.btn-small{min-height:30px;padding:4px 9px;font-size:12px}
+.icon-btn{
+  width:30px;height:30px;padding:0;
+  border:1px solid #d0d6de;border-radius:6px;background:#fff;color:#9e2d2d;
+  font-size:19px;line-height:1;
+}
+.icon-btn:hover{background:#fff2f2}
 
-    th, td {
-      text-align: left;
-      padding: 8px;
-      border-bottom: 1px solid #e5e5e5;
-      vertical-align: top;
-    }
+.message{
+  display:none;
+  margin-bottom:12px;
+  padding:9px 11px;
+  border:1px solid #cbd9e7;
+  border-radius:8px;
+  background:#f3f8fc;
+  color:#33485c;
+  font-weight:600;
+}
+.message.show{display:block}
+.message.warning{border-color:#e4a7a7;background:var(--conflict-bg);color:#842828}
 
-    input, select {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 7px 8px;
-      border: 1px solid #bbb;
-      border-radius: 5px;
-      background: white;
-    }
+.status-filters{
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+  margin-bottom:12px;
+}
+.filter-chip{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-height:34px;
+  padding:5px 10px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:#fff;
+  color:#384250;
+  font-weight:650;
+}
+.filter-chip:hover{filter:brightness(.98)}
+.filter-chip.active{box-shadow:0 0 0 2px #2f6b9e inset}
+.filter-chip .count{
+  min-width:23px;
+  padding:1px 6px;
+  border-radius:999px;
+  text-align:center;
+  background:#eef1f5;
+  font-size:12px;
+}
+.filter-first{border-color:#aad2b9;background:var(--first-bg);color:var(--first)}
+.filter-second{border-color:#ead990;background:var(--second-bg);color:var(--second)}
+.filter-manual{border-color:#b7d5ed;background:var(--manual-bg);color:var(--manual)}
+.filter-none{border-color:#d7dbe0;background:var(--none-bg);color:var(--none)}
+.filter-conflict{border-color:#e4aaaa;background:var(--conflict-bg);color:var(--conflict)}
+.filter-locked{border-color:#c9bcea;background:var(--locked-bg);color:var(--locked)}
 
-    input[type="number"] { min-width: 70px; }
+.panel{
+  overflow:hidden;
+  margin-bottom:14px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--panel);
+  box-shadow:0 1px 3px rgba(23,35,49,.05);
+}
+.panel-header{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:48px;
+  padding:8px 12px;
+  border-bottom:1px solid var(--line);
+  background:#fafbfd;
+}
+.panel-header h2{margin:0;font-size:16px}
+.panel-header .meta{color:var(--muted);font-size:13px}
+.spacer{flex:1}
+.panel-body.hidden{display:none}
 
-    button {
-      padding: 8px 12px;
-      margin-top: 10px;
-      margin-right: 6px;
-      border: 1px solid #aaa;
-      border-radius: 6px;
-      background: white;
-      cursor: pointer;
-    }
+.place-table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th{
+  padding:8px 7px;
+  border-bottom:1px solid var(--line);
+  background:#f3f5f7;
+  color:#586271;
+  text-align:left;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.035em;
+}
+td{
+  padding:5px 6px;
+  border-bottom:1px solid #edf0f3;
+  vertical-align:middle;
+}
+tbody tr:last-child td{border-bottom:0}
+.place-row td:first-child{box-shadow:inset 4px 0 var(--other)}
+.place-row.type-health td:first-child{box-shadow:inset 4px 0 var(--health)}
+.place-row.type-lss td:first-child{box-shadow:inset 4px 0 var(--lss)}
+.place-row.type-psych td:first-child{box-shadow:inset 4px 0 var(--psych)}
+.field{
+  width:100%;
+  min-width:0;
+  height:33px;
+  padding:5px 7px;
+  border:1px solid #c7ced8;
+  border-radius:6px;
+  background:#fff;
+  color:var(--text);
+}
+.field:focus,.text-area:focus{
+  outline:2px solid #c1d9ef;
+  border-color:#7da9cd;
+}
+.number-field{text-align:center;padding-left:2px;padding-right:2px}
+.type-field{font-weight:650}
+.occupancy{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:50px;
+  padding:4px 7px;
+  border-radius:999px;
+  background:#eef1f4;
+  color:#596473;
+  font-weight:750;
+  font-variant-numeric:tabular-nums;
+}
+.occupancy.partial{background:var(--manual-bg);color:var(--manual)}
+.occupancy.full{background:var(--first-bg);color:var(--first)}
+.occupancy.over{background:var(--conflict-bg);color:var(--conflict)}
+.place-footer{
+  display:flex;
+  gap:8px;
+  padding:8px 11px;
+  border-top:1px solid var(--line);
+  background:#fafbfd;
+}
 
-    button.primary {
-      background: #222;
-      color: white;
-      border-color: #222;
-    }
+.student-toolbar{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  padding:9px 12px;
+  border-bottom:1px solid var(--line);
+  background:#fff;
+}
+.student-toolbar .hint{color:var(--muted);font-size:12px}
 
-    button.danger {
-      color: #8b0000;
-    }
+.student-table-wrap{overflow-x:auto}
+.student-table{min-width:1020px}
+.student-row td:first-child{box-shadow:inset 5px 0 var(--none)}
+.student-row.status-first td:first-child{box-shadow:inset 5px 0 var(--first)}
+.student-row.status-second td:first-child{box-shadow:inset 5px 0 #d39a13}
+.student-row.status-manual td:first-child{box-shadow:inset 5px 0 var(--manual)}
+.student-row.status-conflict td:first-child{box-shadow:inset 5px 0 var(--conflict)}
+.student-row.status-first{background:linear-gradient(90deg,var(--first-bg),#fff 13%)}
+.student-row.status-second{background:linear-gradient(90deg,var(--second-bg),#fff 13%)}
+.student-row.status-manual{background:linear-gradient(90deg,var(--manual-bg),#fff 13%)}
+.student-row.status-conflict{background:linear-gradient(90deg,var(--conflict-bg),#fff 16%)}
+.student-row.is-locked td{border-top:1px solid #d8cef1;border-bottom-color:#d8cef1}
+.student-row .field,.student-row .select-field{height:32px}
+.student-row .student-name{height:32px}
+.student-row .badge{justify-content:center;width:100%;padding:3px 5px}
+.student-note{font-weight:400}
+.student-lock{display:flex;align-items:center;justify-content:center}
+.student-lock input{width:17px;height:17px;margin:0;accent-color:var(--locked)}
+.student-index-cell{color:#596474;text-align:center;font-size:12px;font-weight:800}
+.empty-state{
+  padding:35px 20px;
+  background:#fff;
+  color:var(--muted);
+  text-align:center;
+}
+.student-card{
+  overflow:hidden;
+  border:1px solid #d9dee5;
+  border-left:6px solid var(--none);
+  border-radius:9px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(30,42,56,.04);
+}
+.student-card.status-first{border-left-color:var(--first);background:linear-gradient(90deg,var(--first-bg),#fff 18%)}
+.student-card.status-second{border-left-color:#d39a13;background:linear-gradient(90deg,var(--second-bg),#fff 18%)}
+.student-card.status-manual{border-left-color:var(--manual);background:linear-gradient(90deg,var(--manual-bg),#fff 18%)}
+.student-card.status-none{border-left-color:#8a939f}
+.student-card.status-conflict{
+  border-color:#df9e9e;
+  border-left-color:var(--conflict);
+  background:linear-gradient(90deg,var(--conflict-bg),#fff 22%);
+  box-shadow:0 0 0 1px rgba(169,50,50,.08);
+}
+.student-card.is-locked{box-shadow:0 0 0 2px rgba(96,69,165,.16)}
+.student-card-header{
+  display:grid;
+  grid-template-columns:32px minmax(0,1fr) auto 30px;
+  align-items:center;
+  gap:7px;
+  padding:8px 9px;
+  border-bottom:1px solid #e8ebef;
+}
+.student-index{
+  display:grid;
+  place-items:center;
+  width:28px;height:28px;
+  border-radius:50%;
+  background:#e9edf2;
+  color:#596474;
+  font-size:12px;
+  font-weight:800;
+}
+.student-name{
+  width:100%;
+  min-width:0;
+  height:34px;
+  padding:5px 7px;
+  border:1px solid #c6ced8;
+  border-radius:6px;
+  background:#fff;
+  font-weight:750;
+}
+.status-stack{display:flex;align-items:center;justify-content:flex-end;gap:5px;flex-wrap:wrap}
+.badge{
+  display:inline-flex;
+  align-items:center;
+  min-height:24px;
+  padding:3px 7px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:800;
+  white-space:nowrap;
+}
+.badge-first{background:var(--first-bg);color:var(--first)}
+.badge-second{background:var(--second-bg);color:var(--second)}
+.badge-manual{background:var(--manual-bg);color:var(--manual)}
+.badge-none{background:var(--none-bg);color:var(--none)}
+.badge-conflict{background:var(--conflict-bg);color:var(--conflict)}
+.badge-locked{background:var(--locked-bg);color:var(--locked)}
 
-    .small {
-      color: #666;
-      font-size: 0.9rem;
-    }
+.student-card-body{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:10px;
+  padding:10px;
+}
+.form-group{min-width:0}
+.form-group > label{
+  display:block;
+  margin:0 0 5px;
+  color:#596474;
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.025em;
+}
+.choice-line{
+  display:grid;
+  grid-template-columns:27px minmax(0,1fr);
+  align-items:center;
+  gap:6px;
+  margin-bottom:6px;
+}
+.choice-line:last-child{margin-bottom:0}
+.choice-number{
+  display:grid;
+  place-items:center;
+  width:26px;height:31px;
+  border-radius:6px;
+  font-weight:850;
+}
+.choice-number.first{background:var(--first-bg);color:var(--first)}
+.choice-number.second{background:var(--second-bg);color:var(--second)}
+.select-field{
+  width:100%;
+  min-width:0;
+  height:33px;
+  padding:4px 7px;
+  border:1px solid #c7ced8;
+  border-radius:6px;
+  background:#fff;
+  color:var(--text);
+}
+.assignment-select{border-width:2px}
+.assignment-meta{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  min-height:29px;
+  margin-top:6px;
+}
+.lock-label{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:28px;
+  padding:3px 7px;
+  border:1px solid #d3d8e0;
+  border-radius:6px;
+  background:#fff;
+  color:#515b68;
+  cursor:pointer;
+  font-size:12px;
+  font-weight:700;
+}
+.lock-label.checked{
+  border-color:#b7a7df;
+  background:var(--locked-bg);
+  color:var(--locked);
+}
+.lock-label input{width:16px;height:16px;margin:0}
+.conflict-text{color:var(--conflict);font-size:11px;font-weight:800;text-align:right}
+.note-group{grid-column:1/-1}
+.text-area{
+  display:block;
+  width:100%;
+  min-height:58px;
+  padding:7px 8px;
+  resize:vertical;
+  border:1px solid #c7ced8;
+  border-radius:6px;
+  background:#fff;
+  color:var(--text);
+}
+.student-footer{
+  padding:8px 11px;
+  border-top:1px solid var(--line);
+  background:#fafbfd;
+}
+.hidden-by-filter{display:none}
 
-    .result-first { font-weight: 700; }
-    .result-second { font-weight: 600; }
-    .result-none { color: #8b0000; }
+.more-actions{position:relative}
+.more-actions summary{
+  list-style:none;
+  display:inline-flex;
+  align-items:center;
+  min-height:36px;
+  padding:7px 11px;
+  border:1px solid #b7c0cb;
+  border-radius:7px;
+  background:#fff;
+  color:#303844;
+  font-weight:600;
+  cursor:pointer;
+}
+.more-actions summary::-webkit-details-marker{display:none}
+.more-actions[open] summary{background:#f5f7f9}
+.more-menu{
+  position:absolute;
+  right:0;
+  z-index:20;
+  display:grid;
+  gap:6px;
+  width:210px;
+  margin-top:5px;
+  padding:8px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#fff;
+  box-shadow:0 10px 28px rgba(25,36,50,.16);
+}
+.more-menu .btn{text-align:left}
 
-    .summary {
-      margin-top: 12px;
-      padding: 10px 12px;
-      background: #f2f2f2;
-      border-radius: 6px;
-    }
-
-    @media (max-width: 760px) {
-      body { margin-top: 16px; }
-      table, thead, tbody, th, td, tr { display: block; }
-      thead { display: none; }
-      tr {
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        padding: 8px;
-        margin-bottom: 10px;
-      }
-      td {
-        border: 0;
-        padding: 5px 0;
-      }
-      td::before {
-        content: attr(data-label);
-        display: block;
-        font-size: 0.8rem;
-        color: #666;
-        margin-bottom: 2px;
-      }
-    }
-  </style>
+@media(max-width:760px){
+  .app{padding:10px}
+  .app-header{display:block}
+  .header-actions{justify-content:flex-start;margin-top:12px}
+  .place-table{min-width:760px}
+  .student-table{min-width:980px}
+  .status-filters{gap:5px}
+  .filter-chip{padding:4px 8px;font-size:12px}
+}
+@media print{
+  body{background:#fff}
+  .app{max-width:none;padding:0}
+  .header-actions,.status-filters,.place-footer,.student-toolbar,.icon-btn,.more-actions{display:none!important}
+  .panel{box-shadow:none;break-inside:avoid}
+  .student-table{min-width:0;table-layout:auto}
+  .student-table th:nth-child(4),.student-table td:nth-child(4),
+  .student-table th:nth-child(8),.student-table td:nth-child(8){display:none}
+  .student-row{break-inside:avoid}
+}
+</style>
 </head>
 <body>
-  <h1>APL-fördelning</h1>
-  <div class="small">Lägg in platser och elever. Sidan sparar automatiskt uppgifterna i den här webbläsaren.</div>
+<div class="app">
+  <header class="app-header">
+    <div class="title-block">
+      <h1>APL-fördelning</h1>
+      <p>Planera önskemål, fördela automatiskt och justera placeringar manuellt.</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary" onclick="allocate()">Fördela automatiskt</button>
+      <button class="btn" onclick="addStudent()">+ Elev</button>
+      <button class="btn" onclick="saveDataFile()">Spara data</button>
+      <button class="btn" onclick="document.getElementById('loadFile').click()">Ladda data</button>
+      <input id="loadFile" type="file" accept=".json,application/json" hidden onchange="loadDataFile(event)">
+      <details class="more-actions">
+        <summary>Fler åtgärder</summary>
+        <div class="more-menu">
+          <button class="btn" onclick="clearAssignments(true,true);closeMenus()">Rensa alla placeringar</button>
+          <button class="btn" onclick="resetDefaultPlaces();closeMenus()">Återställ standardplatser</button>
+          <button class="btn btn-danger" onclick="clearEverything();closeMenus()">Rensa allt</button>
+        </div>
+      </details>
+    </div>
+  </header>
 
-  <h2>1. APL-platser</h2>
-  <div class="box">
-    <table>
-      <thead>
-        <tr>
-          <th>APL-plats</th>
-          <th style="width:120px">Antal platser</th>
-          <th style="width:90px"></th>
-        </tr>
-      </thead>
-      <tbody id="placesBody"></tbody>
-    </table>
-    <button type="button" onclick="addPlace()">+ Lägg till APL-plats</button>
-  </div>
+  <div id="message" class="message"></div>
+  <nav id="statusFilters" class="status-filters" aria-label="Filtrera elever"></nav>
 
-  <h2>2. Elever</h2>
-  <div class="box">
-    <table>
-      <thead>
-        <tr>
-          <th style="width:18%">Elev</th>
-          <th style="width:18%">Förstahandsval</th>
-          <th style="width:18%">Andrahandsval</th>
-          <th>Fritext</th>
-          <th style="width:18%">Tilldelning</th>
-          <th style="width:90px"></th>
-        </tr>
-      </thead>
-      <tbody id="studentsBody"></tbody>
-    </table>
-    <button type="button" onclick="addStudent()">+ Lägg till elev</button>
-  </div>
+  <section class="panel">
+    <div class="panel-header">
+      <h2>1. APL-platser</h2>
+      <span id="placeMeta" class="meta"></span>
+      <div class="spacer"></div>
+      <button id="togglePlacesBtn" class="btn btn-small" onclick="togglePlaces()">Dölj listan</button>
+      <button class="btn btn-small" onclick="addPlace()">+ Plats</button>
+    </div>
+    <div id="placesBodyPanel" class="panel-body">
+      <div class="place-table-wrap">
+        <table class="place-table">
+          <colgroup>
+            <col style="width:48px">
+            <col style="width:90px">
+            <col>
+            <col style="width:135px">
+            <col style="width:74px">
+            <col style="width:92px">
+            <col style="width:42px">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Typ</th>
+              <th>Verksamhet</th>
+              <th>Ort</th>
+              <th>Platser</th>
+              <th>Beläggning</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="placesTableBody"></tbody>
+        </table>
+      </div>
+      <div class="place-footer">
+        <button class="btn btn-small" onclick="addPlace()">+ Lägg till APL-plats</button>
+      </div>
+    </div>
+  </section>
 
-  <h2>3. Fördela</h2>
-  <div class="box">
-    <button type="button" class="primary" onclick="allocate()">Fördela platser</button>
-    <button type="button" onclick="clearAssignments()">Rensa tilldelning</button>
-    <button type="button" class="danger" onclick="clearEverything()">Rensa allt</button>
-    <div id="summary" class="summary">Ingen fördelning gjord ännu.</div>
-  </div>
+  <section class="panel">
+    <div class="panel-header">
+      <h2>2. Elevplaceringar</h2>
+      <span id="studentMeta" class="meta"></span>
+      <div class="spacer"></div>
+      <button class="btn btn-small" onclick="addStudent()">+ Elev</button>
+    </div>
+    <div class="student-toolbar">
+      <span class="hint">Välj en APL-plats manuellt under varje elev. Lås placeringen för att behålla den vid nästa automatiska fördelning.</span>
+    </div>
+    <div class="student-table-wrap">
+      <table class="student-table">
+        <colgroup>
+          <col style="width:42px">
+          <col style="width:145px">
+          <col style="width:165px">
+          <col style="width:165px">
+          <col style="width:190px">
+          <col style="width:55px">
+          <col style="width:130px">
+          <col>
+          <col style="width:42px">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Elev</th>
+            <th>Förstahandsval</th>
+            <th>Andrahandsval</th>
+            <th>Tilldelad APL-plats</th>
+            <th>Lås</th>
+            <th>Status</th>
+            <th>Anteckning</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="studentsTableBody"></tbody>
+      </table>
+    </div>
+    <div class="student-footer">
+      <button class="btn btn-small" onclick="addStudent()">+ Lägg till elev</button>
+    </div>
+  </section>
+</div>
 
 <script>
-  const STORAGE_KEY = "apl-fordelning-v1";
+const STORAGE_KEY="apl-fordelning-v6";
+const OLD_STORAGE_KEYS=["apl-fordelning-v5","apl-fordelning-v4","apl-fordelning-v3","apl-fordelning-v2","apl-fordelning-v1"];
+const defaultPlaces=[{"nr":1,"type":"Sjukv.","name":"Akutmottagningen","town":"Eksjö"},{"nr":2,"type":"Sjukv.","name":"Kirurgkliniken","town":"Eksjö"},{"nr":3,"type":"Sjukv.","name":"Ortopedisk Vårdenhet","town":"Eksjö"},{"nr":4,"type":"Sjukv.","name":"Medicin C","town":"Eksjö"},{"nr":5,"type":"Sjukv.","name":"Medicin E","town":"Eksjö"},{"nr":6,"type":"Sjukv.","name":"Medicin G","town":"Eksjö"},{"nr":7,"type":"Sjukv.","name":"Eksjö Vårdcentral","town":"Eksjö"},{"nr":8,"type":"Sjukv.","name":"Hemsjukvården Eksjö","town":"Eksjö"},{"nr":9,"type":"Sjukv.","name":"Hemsjukvården Mariannelund","town":"Mariannelund"},{"nr":10,"type":"Sjukv.","name":"Mariannelunds Vårdcentral","town":"Mariannelund"},{"nr":11,"type":"Sjukv.","name":"Mariebergs korttidsvård","town":"Eksjö"},{"nr":12,"type":"LSS","name":"Oxen","town":"Eksjö"},{"nr":13,"type":"LSS","name":"Skogshyddans GB","town":"Eksjö"},{"nr":14,"type":"LSS","name":"Maskrosängen Korttidshem","town":"Eksjö"},{"nr":15,"type":"LSS","name":"Ingengörsgatan Serviceboende","town":"Eksjö"},{"nr":16,"type":"LSS","name":"Anpassad Grundskola åk 1–6, Grevhagsskolan","town":"Eksjö"},{"nr":17,"type":"LSS","name":"Verksatdsgatans GB","town":"Eksjö"},{"nr":18,"type":"LSS","name":"V. Ågatan GB","town":"Eksjö"},{"nr":19,"type":"Psyk","name":"PSYK B","town":""},{"nr":20,"type":"Psyk","name":"Atollen omsorg, Astra","town":""}];
 
-  let places = [];
-  let students = [];
+let places=[];
+let students=[];
+let activeFilter="all";
+let placesVisible=true;
 
-  function uid() {
-    return Math.random().toString(36).slice(2) + Date.now().toString(36);
+function uid(){
+  return Math.random().toString(36).slice(2)+Date.now().toString(36);
+}
+
+function makeDefaultPlaces(){
+  return defaultPlaces.map(p=>({...p,id:uid(),capacity:1}));
+}
+
+function readStoredData(){
+  const keys=[STORAGE_KEY,...OLD_STORAGE_KEYS];
+  for(const key of keys){
+    try{
+      const value=JSON.parse(localStorage.getItem(key));
+      if(value && Array.isArray(value.places) && Array.isArray(value.students))return value;
+    }catch(_){}
   }
+  return null;
+}
 
-  function load() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (saved) {
-        places = Array.isArray(saved.places) ? saved.places : [];
-        students = Array.isArray(saved.students) ? saved.students : [];
-      }
-    } catch (_) {}
+function load(){
+  const saved=readStoredData();
+  if(saved){
+    places=saved.places;
+    students=saved.students;
+  }else{
+    places=makeDefaultPlaces();
+    students=[];
+  }
+  normalize();
+  if(!students.length)addStudent(false);
+  render();
+  save();
+}
 
-    if (!places.length) addPlace(false);
-    if (!students.length) addStudent(false);
+function normalize(){
+  places=places.map((p,i)=>({
+    id:p.id||uid(),
+    nr:p.nr??i+1,
+    type:p.type||"",
+    name:p.name||"",
+    town:p.town||"",
+    capacity:Math.max(0,Number(p.capacity)||0)
+  }));
+
+  students=students.map(s=>{
+    const student={
+      id:s.id||uid(),
+      name:s.name||"",
+      first:s.first||"",
+      second:s.second||"",
+      note:s.note||"",
+      assigned:s.assigned||"",
+      assignmentType:s.assignmentType||"",
+      locked:Boolean(s.locked)
+    };
+    syncAssignmentType(student);
+    return student;
+  });
+}
+
+function syncAssignmentType(s){
+  if(!s.assigned)s.assignmentType="none";
+  else if(s.assigned===s.first)s.assignmentType="first";
+  else if(s.assigned===s.second)s.assignmentType="second";
+  else s.assignmentType="manual";
+}
+
+function save(){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify({places,students}));
+}
+
+function closeMenus(){
+  document.querySelectorAll("details[open]").forEach(el=>el.removeAttribute("open"));
+}
+
+function showMessage(text,type="info"){
+  const el=document.getElementById("message");
+  el.textContent=text;
+  el.className=`message show${type==="warning"?" warning":""}`;
+}
+
+function hideMessage(){
+  const el=document.getElementById("message");
+  el.className="message";
+  el.textContent="";
+}
+
+function addPlace(doRender=true){
+  const next=places.length?Math.max(...places.map(p=>Number(p.nr)||0))+1:1;
+  places.push({id:uid(),nr:next,type:"",name:"",town:"",capacity:1});
+  if(doRender){
     render();
+    save();
+    placesVisible=true;
+    applyPlacesVisibility();
+    setTimeout(()=>{
+      const inputs=document.querySelectorAll("#placesTableBody input[data-place-name]");
+      if(inputs.length)inputs[inputs.length-1].focus();
+    },0);
+  }
+}
+
+function removePlace(id){
+  const place=places.find(p=>p.id===id);
+  if(!place)return;
+  if(!confirm(`Ta bort ${place.name||"den här APL-platsen"}?`))return;
+
+  places=places.filter(p=>p.id!==id);
+  students.forEach(s=>{
+    if(s.first===id)s.first="";
+    if(s.second===id)s.second="";
+    if(s.assigned===id){
+      s.assigned="";
+      s.assignmentType="none";
+      s.locked=false;
+    }
+  });
+  render();
+  save();
+  showMessage("APL-platsen togs bort.");
+}
+
+function addStudent(doRender=true){
+  students.push({
+    id:uid(),
+    name:"",
+    first:"",
+    second:"",
+    note:"",
+    assigned:"",
+    assignmentType:"none",
+    locked:false
+  });
+  if(doRender){
+    activeFilter="all";
+    render();
+    save();
+    setTimeout(()=>{
+      const inputs=document.querySelectorAll(".student-name");
+      if(inputs.length)inputs[inputs.length-1].focus();
+    },0);
+  }
+}
+
+function removeStudent(id){
+  const s=students.find(x=>x.id===id);
+  if(!s)return;
+  const label=s.name?`eleven ${s.name}`:"den här eleven";
+  if(!confirm(`Ta bort ${label}?`))return;
+  students=students.filter(x=>x.id!==id);
+  render();
+  save();
+  showMessage("Eleven togs bort.");
+}
+
+function updatePlace(id,field,value){
+  const p=places.find(x=>x.id===id);
+  if(!p)return;
+  if(field==="capacity")p[field]=Math.max(0,Number(value)||0);
+  else if(field==="nr")p[field]=Number(value)||"";
+  else p[field]=value;
+  render();
+  save();
+  updateConflictMessage();
+}
+
+function updateStudent(id,field,value){
+  const s=students.find(x=>x.id===id);
+  if(!s)return;
+
+  s[field]=value;
+
+  const preferenceChanged=field==="first" || field==="second";
+  if(field==="first" && s.second===value)s.second="";
+  if(field==="second" && s.first===value)s.first="";
+
+  if(preferenceChanged){
+    if(!s.locked){
+      s.assigned="";
+      s.assignmentType="none";
+    }else{
+      syncAssignmentType(s);
+    }
   }
 
-  function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ places, students }));
+  render();
+  save();
+  updateConflictMessage();
+}
+
+function updateStudentNote(id,value){
+  const s=students.find(x=>x.id===id);
+  if(!s)return;
+  s.note=value;
+  save();
+}
+
+function placeLabel(p){
+  const number=p.nr?`${p.nr}. `:"";
+  return `${number}${p.name||"Namnlös plats"}${p.town?` · ${p.town}`:""}`;
+}
+
+function placeOptions(selected,exclude=""){
+  let out='<option value="">— välj —</option>';
+  for(const p of sortedPlaces()){
+    if(p.id===exclude)continue;
+    out+=`<option value="${esc(p.id)}" ${p.id===selected?"selected":""}>${htmlEsc(placeLabel(p))}</option>`;
+  }
+  return out;
+}
+
+function assignmentOptions(selected){
+  let out='<option value="">— ej placerad —</option>';
+  for(const p of sortedPlaces()){
+    out+=`<option value="${esc(p.id)}" ${p.id===selected?"selected":""}>${htmlEsc(placeLabel(p))}</option>`;
+  }
+  return out;
+}
+
+function sortedPlaces(){
+  return [...places].sort((a,b)=>(Number(a.nr)||9999)-(Number(b.nr)||9999));
+}
+
+function assignmentCounts(){
+  const counts=new Map();
+  students.forEach(s=>{
+    if(s.assigned)counts.set(s.assigned,(counts.get(s.assigned)||0)+1);
+  });
+  return counts;
+}
+
+function getStats(){
+  const counts=assignmentCounts();
+  const overPlaceIds=new Set(
+    places
+      .filter(p=>(counts.get(p.id)||0)>(Number(p.capacity)||0))
+      .map(p=>p.id)
+  );
+
+  const stats={
+    total:students.length,
+    first:0,
+    second:0,
+    manual:0,
+    none:0,
+    conflict:0,
+    locked:0,
+    counts,
+    overPlaceIds
+  };
+
+  students.forEach(s=>{
+    if(s.locked && s.assigned)stats.locked++;
+    if(s.assigned && overPlaceIds.has(s.assigned)){
+      stats.conflict++;
+      return;
+    }
+    if(!s.assigned || s.assignmentType==="none")stats.none++;
+    else if(s.assignmentType==="first")stats.first++;
+    else if(s.assignmentType==="second")stats.second++;
+    else stats.manual++;
+  });
+
+  return stats;
+}
+
+function visualStatus(s,stats){
+  if(s.assigned && stats.overPlaceIds.has(s.assigned))return"conflict";
+  if(!s.assigned || s.assignmentType==="none")return"none";
+  if(s.assignmentType==="first")return"first";
+  if(s.assignmentType==="second")return"second";
+  return"manual";
+}
+
+function typeClass(type){
+  const value=String(type||"").toLowerCase();
+  if(value.includes("sjukv") || value.includes("vård"))return"type-health";
+  if(value.includes("lss"))return"type-lss";
+  if(value.includes("psyk"))return"type-psych";
+  return"type-other";
+}
+
+function render(){
+  const stats=getStats();
+  renderFilters(stats);
+  renderPlaces(stats);
+  renderStudents(stats);
+  updateMeta(stats);
+  updateConflictMessage(stats);
+  applyPlacesVisibility();
+}
+
+function renderFilters(stats){
+  const items=[
+    ["all","Alla",stats.total,""],
+    ["first","Förstahandsval",stats.first,"filter-first"],
+    ["second","Andrahandsval",stats.second,"filter-second"],
+    ["manual","Manuella",stats.manual,"filter-manual"],
+    ["none","Ej placerade",stats.none,"filter-none"],
+    ["conflict","Dubblett",stats.conflict,"filter-conflict"],
+    ["locked","Låsta",stats.locked,"filter-locked"]
+  ];
+
+  document.getElementById("statusFilters").innerHTML=items.map(([key,label,count,cls])=>`
+    <button class="filter-chip ${cls} ${activeFilter===key?"active":""}" onclick="setFilter('${key}')">
+      <span>${label}</span><span class="count">${count}</span>
+    </button>
+  `).join("");
+}
+
+function setFilter(filter){
+  activeFilter=filter;
+  const stats=getStats();
+  renderFilters(stats);
+  renderStudents(stats);
+}
+
+function matchesFilter(s,status){
+  if(activeFilter==="all")return true;
+  if(activeFilter==="locked")return Boolean(s.locked && s.assigned);
+  return status===activeFilter;
+}
+
+function renderPlaces(stats){
+  const body=document.getElementById("placesTableBody");
+
+  body.innerHTML=sortedPlaces().map(p=>{
+    const used=stats.counts.get(p.id)||0;
+    const cap=Number(p.capacity)||0;
+    let occClass="";
+    if(used>cap)occClass="over";
+    else if(cap>0 && used===cap)occClass="full";
+    else if(used>0)occClass="partial";
+
+    const assignedNames=students
+      .filter(s=>s.assigned===p.id)
+      .map(s=>s.name||"Namnlös elev")
+      .join(", ");
+
+    return `<tr class="place-row ${typeClass(p.type)}">
+      <td><input class="field number-field" type="number" min="1" value="${esc(p.nr)}" onchange="updatePlace('${p.id}','nr',this.value)" aria-label="Nummer"></td>
+      <td><input class="field type-field" value="${esc(p.type)}" onchange="updatePlace('${p.id}','type',this.value)" aria-label="Typ"></td>
+      <td><input data-place-name class="field" value="${esc(p.name)}" onchange="updatePlace('${p.id}','name',this.value)" aria-label="Verksamhet"></td>
+      <td><input class="field" value="${esc(p.town)}" onchange="updatePlace('${p.id}','town',this.value)" aria-label="Ort"></td>
+      <td><input class="field number-field" type="number" min="0" value="${cap}" onchange="updatePlace('${p.id}','capacity',this.value)" aria-label="Antal platser"></td>
+      <td title="${esc(assignedNames)}"><span class="occupancy ${occClass}">${used}/${cap}</span></td>
+      <td><button class="icon-btn" onclick="removePlace('${p.id}')" title="Ta bort APL-plats" aria-label="Ta bort APL-plats">×</button></td>
+    </tr>`;
+  }).join("");
+}
+
+function renderStudents(stats){
+  const body=document.getElementById("studentsTableBody");
+  const visible=students
+    .map((s,index)=>({s,index,status:visualStatus(s,stats)}))
+    .filter(item=>matchesFilter(item.s,item.status));
+
+  if(!visible.length){
+    body.innerHTML='<tr><td class="empty-state" colspan="9">Inga elever matchar det valda filtret.</td></tr>';
+    return;
   }
 
-  function addPlace(doRender = true) {
-    places.push({ id: uid(), name: "", capacity: 1 });
-    if (doRender) {
-      clearAssignments(false);
+  body.innerHTML=visible.map(({s,index,status})=>{
+    const p=places.find(x=>x.id===s.assigned);
+    const used=p?(stats.counts.get(p.id)||0):0;
+    const cap=p?(Number(p.capacity)||0):0;
+
+    const labels={
+      first:["Förstahandsval","badge-first"],
+      second:["Andrahandsval","badge-second"],
+      manual:["Manuell","badge-manual"],
+      none:["Ej placerad","badge-none"],
+      conflict:["Dubblett","badge-conflict"]
+    };
+    const [statusText,badgeClass]=labels[status];
+
+    const conflictText=status==="conflict" && p
+      ? `${used} elever på ${cap} plats${cap===1?"":"er"}`
+      : "";
+
+    const statusTitle=conflictText || (s.locked?"Placeringen är låst":"");
+
+    return `<tr class="student-row status-${status} ${s.locked?"is-locked":""}">
+      <td class="student-index-cell">${index+1}</td>
+      <td><input class="field student-name" value="${esc(s.name)}" placeholder="Elevens namn" onchange="updateStudent('${s.id}','name',this.value)"></td>
+      <td><select class="select-field" onchange="updateStudent('${s.id}','first',this.value)">${placeOptions(s.first,s.second)}</select></td>
+      <td><select class="select-field" onchange="updateStudent('${s.id}','second',this.value)">${placeOptions(s.second,s.first)}</select></td>
+      <td><select class="select-field assignment-select" onchange="setManualAssignment('${s.id}',this.value)">${assignmentOptions(s.assigned)}</select></td>
+      <td><label class="student-lock" title="${s.locked?"Placeringen är låst":"Lås placeringen"}"><input type="checkbox" ${s.locked?"checked":""} ${p?"":"disabled"} onchange="toggleLock('${s.id}',this.checked)" aria-label="Lås placeringen"></label></td>
+      <td title="${esc(statusTitle)}"><span class="badge ${badgeClass}">${statusText}${s.locked?" · Låst":""}</span></td>
+      <td><input class="field student-note" value="${esc(s.note)}" placeholder="Anteckning…" title="${esc(s.note)}" oninput="updateStudentNote('${s.id}',this.value)"></td>
+      <td><button class="icon-btn" onclick="removeStudent('${s.id}')" title="Ta bort elev" aria-label="Ta bort elev">×</button></td>
+    </tr>`;
+  }).join("");
+}
+
+function updateMeta(stats){
+  const capacity=places.reduce((sum,p)=>sum+(Number(p.capacity)||0),0);
+  document.getElementById("placeMeta").textContent=`${places.length} verksamheter · ${capacity} platser`;
+  document.getElementById("studentMeta").textContent=`${stats.total} elever · ${stats.locked} låsta`;
+}
+
+function updateConflictMessage(existingStats=null){
+  const stats=existingStats||getStats();
+  const overPlaces=places.filter(p=>stats.overPlaceIds.has(p.id));
+
+  if(overPlaces.length){
+    const details=overPlaces.map(p=>{
+      const used=stats.counts.get(p.id)||0;
+      const cap=Number(p.capacity)||0;
+      return `${p.name||"Namnlös plats"} (${used}/${cap})`;
+    }).join(", ");
+    showMessage(`Dubblett eller överbeläggning: ${details}`,"warning");
+  }else{
+    hideMessage();
+  }
+}
+
+function setManualAssignment(id,placeId){
+  const s=students.find(x=>x.id===id);
+  if(!s)return;
+  s.assigned=placeId;
+  if(!placeId)s.locked=false;
+  syncAssignmentType(s);
+  render();
+  save();
+}
+
+function toggleLock(id,checked){
+  const s=students.find(x=>x.id===id);
+  if(!s)return;
+  if(checked && !s.assigned)return;
+  s.locked=Boolean(checked);
+  render();
+  save();
+}
+
+function togglePlaces(){
+  placesVisible=!placesVisible;
+  applyPlacesVisibility();
+}
+
+function applyPlacesVisibility(){
+  const panel=document.getElementById("placesBodyPanel");
+  const btn=document.getElementById("togglePlacesBtn");
+  if(!panel || !btn)return;
+  panel.classList.toggle("hidden",!placesVisible);
+  btn.textContent=placesVisible?"Dölj listan":"Visa listan";
+}
+
+function clearAssignments(doRender=true,includeLocked=false){
+  students.forEach(s=>{
+    if(includeLocked || !s.locked){
+      s.assigned="";
+      s.assignmentType="none";
+      if(includeLocked)s.locked=false;
+    }
+  });
+  if(doRender){
+    activeFilter="all";
+    render();
+    save();
+    showMessage("Alla placeringar och låsningar har rensats.");
+  }
+}
+
+function resetDefaultPlaces(){
+  if(!confirm("Ersätta nuvarande APL-platser med standardlistan? Elevernas val och placeringar nollställs."))return;
+  places=makeDefaultPlaces();
+  students.forEach(s=>{
+    s.first="";
+    s.second="";
+    s.assigned="";
+    s.assignmentType="none";
+    s.locked=false;
+  });
+  activeFilter="all";
+  render();
+  save();
+  showMessage("Standardplatserna har återställts.");
+}
+
+function clearEverything(){
+  if(!confirm("Rensa alla elever, APL-platser, önskemål och placeringar?"))return;
+  places=makeDefaultPlaces();
+  students=[];
+  addStudent(false);
+  activeFilter="all";
+  render();
+  save();
+  showMessage("All elevdata har rensats. Standardplatserna finns kvar.");
+}
+
+function saveDataFile(){
+  const payload={
+    version:3,
+    savedAt:new Date().toISOString(),
+    places,
+    students
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  const d=new Date();
+  const stamp=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  a.href=url;
+  a.download=`apl-fordelning-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  showMessage("Datafilen har sparats i mappen Hämtade filer.");
+}
+
+function loadDataFile(event){
+  const file=event.target.files && event.target.files[0];
+  if(!file)return;
+
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result);
+      if(!data || !Array.isArray(data.places) || !Array.isArray(data.students)){
+        throw new Error("Felaktigt filformat");
+      }
+      places=data.places;
+      students=data.students;
+      normalize();
+      activeFilter="all";
       render();
       save();
+      showMessage(`Data laddad: ${students.length} elever och ${places.length} APL-platser.`);
+    }catch(_){
+      alert("Filen kunde inte läsas som en giltig APL-sparfil.");
+    }finally{
+      event.target.value="";
     }
-  }
+  };
+  reader.readAsText(file);
+}
 
-  function removePlace(id) {
-    places = places.filter(p => p.id !== id);
-    students.forEach(s => {
-      if (s.first === id) s.first = "";
-      if (s.second === id) s.second = "";
-      if (s.assigned === id) {
-        s.assigned = "";
-        s.assignmentType = "";
-      }
-    });
-    render();
-    save();
-  }
+function allocate(){
+  hideMessage();
 
-  function addStudent(doRender = true) {
-    students.push({
-      id: uid(),
-      name: "",
-      first: "",
-      second: "",
-      note: "",
-      assigned: "",
-      assignmentType: ""
-    });
-    if (doRender) {
-      render();
-      save();
+  students.forEach(s=>{
+    if(s.locked && !places.some(p=>p.id===s.assigned)){
+      s.locked=false;
+      s.assigned="";
+      s.assignmentType="none";
     }
-  }
-
-  function removeStudent(id) {
-    students = students.filter(s => s.id !== id);
-    render();
-    save();
-  }
-
-  function updatePlace(id, field, value) {
-    const p = places.find(x => x.id === id);
-    if (!p) return;
-    p[field] = field === "capacity" ? Math.max(0, Number(value) || 0) : value;
-    clearAssignments(false);
-    renderStudents();
-    updateSummaryDefault();
-    save();
-  }
-
-  function updateStudent(id, field, value) {
-    const s = students.find(x => x.id === id);
-    if (!s) return;
-    s[field] = value;
-
-    if (field === "first" && s.second === value) s.second = "";
-    if (field === "second" && s.first === value) s.first = "";
-
-    s.assigned = "";
-    s.assignmentType = "";
-    renderStudents();
-    updateSummaryDefault();
-    save();
-  }
-
-  function placeOptions(selected, exclude = "") {
-    let html = '<option value="">— välj —</option>';
-    for (const p of places) {
-      if (p.id === exclude) continue;
-      html += `<option value="${escapeAttr(p.id)}" ${p.id === selected ? "selected" : ""}>${escapeHtml(p.name || "Namnlös plats")}</option>`;
+    if(!s.locked){
+      s.assigned="";
+      s.assignmentType="none";
     }
-    return html;
-  }
+  });
 
-  function render() {
-    renderPlaces();
-    renderStudents();
-  }
-
-  function renderPlaces() {
-    const body = document.getElementById("placesBody");
-    body.innerHTML = places.map(p => `
-      <tr>
-        <td data-label="APL-plats">
-          <input value="${escapeAttr(p.name)}" placeholder="T.ex. Hemtjänst Norr"
-            onchange="updatePlace('${p.id}', 'name', this.value)">
-        </td>
-        <td data-label="Antal platser">
-          <input type="number" min="0" step="1" value="${p.capacity}"
-            onchange="updatePlace('${p.id}', 'capacity', this.value)">
-        </td>
-        <td data-label="">
-          <button type="button" class="danger" onclick="removePlace('${p.id}')">Ta bort</button>
-        </td>
-      </tr>
-    `).join("");
-  }
-
-  function renderStudents() {
-    const body = document.getElementById("studentsBody");
-    body.innerHTML = students.map(s => {
-      const assignedPlace = places.find(p => p.id === s.assigned);
-      let result = "—";
-      let cls = "";
-
-      if (assignedPlace) {
-        result = assignedPlace.name || "Namnlös plats";
-        if (s.assignmentType === "first") {
-          result += " (1:a)";
-          cls = "result-first";
-        } else if (s.assignmentType === "second") {
-          result += " (2:a)";
-          cls = "result-second";
-        }
-      } else if (s.assignmentType === "none") {
-        result = "Ej placerad";
-        cls = "result-none";
-      }
-
-      return `
-        <tr>
-          <td data-label="Elev">
-            <input value="${escapeAttr(s.name)}" placeholder="Elevens namn"
-              onchange="updateStudent('${s.id}', 'name', this.value)">
-          </td>
-          <td data-label="Förstahandsval">
-            <select onchange="updateStudent('${s.id}', 'first', this.value)">
-              ${placeOptions(s.first, s.second)}
-            </select>
-          </td>
-          <td data-label="Andrahandsval">
-            <select onchange="updateStudent('${s.id}', 'second', this.value)">
-              ${placeOptions(s.second, s.first)}
-            </select>
-          </td>
-          <td data-label="Fritext">
-            <input value="${escapeAttr(s.note)}" placeholder="T.ex. önskemål, transport, tidigare APL..."
-              onchange="updateStudent('${s.id}', 'note', this.value)">
-          </td>
-          <td data-label="Tilldelning" class="${cls}">${escapeHtml(result)}</td>
-          <td data-label="">
-            <button type="button" class="danger" onclick="removeStudent('${s.id}')">Ta bort</button>
-          </td>
-        </tr>
-      `;
-    }).join("");
-  }
-
-  function clearAssignments(doRender = true) {
-    students.forEach(s => {
-      s.assigned = "";
-      s.assignmentType = "";
-    });
-    if (doRender) {
-      renderStudents();
-      updateSummaryDefault();
-      save();
+  const reserved=new Map();
+  students.forEach(s=>{
+    if(s.locked && s.assigned){
+      reserved.set(s.assigned,(reserved.get(s.assigned)||0)+1);
     }
+  });
+
+  const active=places
+    .map(p=>({
+      ...p,
+      remaining:Math.max(0,(Number(p.capacity)||0)-(reserved.get(p.id)||0))
+    }))
+    .filter(p=>p.remaining>0);
+
+  const unlocked=students.filter(s=>!s.locked);
+  const n=unlocked.length;
+  const source=0;
+  const studentStart=1;
+  const placeStart=studentStart+n;
+  const sink=placeStart+active.length;
+  const graph=Array.from({length:sink+1},()=>[]);
+  const placeNode=new Map();
+
+  function edge(from,to,cap,cost,meta=null){
+    const forward={to,rev:graph[to].length,cap,cost,meta};
+    const reverse={to:from,rev:graph[from].length,cap:0,cost:-cost,meta:null};
+    graph[from].push(forward);
+    graph[to].push(reverse);
+    return forward;
   }
 
-  function clearEverything() {
-    if (!confirm("Rensa alla APL-platser, elever och val?")) return;
-    places = [];
-    students = [];
-    addPlace(false);
-    addStudent(false);
-    localStorage.removeItem(STORAGE_KEY);
-    render();
-    updateSummaryDefault();
-    save();
-  }
+  active.forEach((p,i)=>{
+    const node=placeStart+i;
+    placeNode.set(p.id,node);
+    edge(node,sink,p.remaining,0);
+  });
 
-  function updateSummaryDefault() {
-    document.getElementById("summary").textContent = "Ingen aktuell fördelning.";
-  }
+  const preferenceEdges=Array.from({length:n},()=>[]);
+  const unassignedPenalty=n+1;
 
-  // Min-cost max-flow:
-  // 1:a val kostar 0, 2:a val kostar 1.
-  // Oplacerad elev får en mycket högre kostnad.
-  // Därmed maximeras först antalet placerade elever och därefter antalet förstahandsval.
-  function allocate() {
-    clearAssignments(false);
+  unlocked.forEach((s,i)=>{
+    const node=studentStart+i;
+    edge(source,node,1,0);
 
-    const activePlaces = places
-      .map((p, index) => ({ ...p, originalIndex: index, capacity: Math.max(0, Number(p.capacity) || 0) }))
-      .filter(p => p.capacity > 0);
-
-    const placeNodeById = new Map();
-    const nStudents = students.length;
-    const source = 0;
-    const studentStart = 1;
-    const placeStart = studentStart + nStudents;
-    const sink = placeStart + activePlaces.length;
-    const graph = Array.from({ length: sink + 1 }, () => []);
-
-    function addEdge(from, to, cap, cost, meta = null) {
-      const forward = { to, rev: graph[to].length, cap, cost, meta };
-      const reverse = { to: from, rev: graph[from].length, cap: 0, cost: -cost, meta: null };
-      graph[from].push(forward);
-      graph[to].push(reverse);
-      return forward;
+    if(s.first && placeNode.has(s.first)){
+      preferenceEdges[i].push(
+        edge(node,placeNode.get(s.first),1,0,{placeId:s.first,type:"first"})
+      );
     }
 
-    activePlaces.forEach((p, i) => {
-      const node = placeStart + i;
-      placeNodeById.set(p.id, node);
-      addEdge(node, sink, p.capacity, 0);
-    });
+    if(s.second && s.second!==s.first && placeNode.has(s.second)){
+      preferenceEdges[i].push(
+        edge(node,placeNode.get(s.second),1,1,{placeId:s.second,type:"second"})
+      );
+    }
 
-    const preferenceEdges = Array.from({ length: nStudents }, () => []);
-    const unassignedPenalty = nStudents + 1;
+    edge(node,sink,1,unassignedPenalty,{type:"none"});
+  });
 
-    students.forEach((s, i) => {
-      const studentNode = studentStart + i;
-      addEdge(source, studentNode, 1, 0);
+  for(let flow=0;flow<n;flow++){
+    const dist=Array(graph.length).fill(Infinity);
+    const prevNode=Array(graph.length).fill(-1);
+    const prevEdge=Array(graph.length).fill(-1);
+    const inQueue=Array(graph.length).fill(false);
 
-      if (s.first && placeNodeById.has(s.first)) {
-        const edge = addEdge(studentNode, placeNodeById.get(s.first), 1, 0, {
-          kind: "choice", placeId: s.first, type: "first"
-        });
-        preferenceEdges[i].push(edge);
-      }
+    dist[source]=0;
+    const queue=[source];
+    inQueue[source]=true;
 
-      if (s.second && s.second !== s.first && placeNodeById.has(s.second)) {
-        const edge = addEdge(studentNode, placeNodeById.get(s.second), 1, 1, {
-          kind: "choice", placeId: s.second, type: "second"
-        });
-        preferenceEdges[i].push(edge);
-      }
+    while(queue.length){
+      const v=queue.shift();
+      inQueue[v]=false;
 
-      addEdge(studentNode, sink, 1, unassignedPenalty, { kind: "unassigned" });
-    });
+      for(let i=0;i<graph[v].length;i++){
+        const e=graph[v][i];
+        if(e.cap<=0)continue;
+        const nextDistance=dist[v]+e.cost;
 
-    // SPFA is deliberately used here because reverse edges can have negative cost.
-    for (let flow = 0; flow < nStudents; flow++) {
-      const dist = Array(graph.length).fill(Infinity);
-      const inQueue = Array(graph.length).fill(false);
-      const prevNode = Array(graph.length).fill(-1);
-      const prevEdge = Array(graph.length).fill(-1);
+        if(nextDistance<dist[e.to]){
+          dist[e.to]=nextDistance;
+          prevNode[e.to]=v;
+          prevEdge[e.to]=i;
 
-      dist[source] = 0;
-      const queue = [source];
-      inQueue[source] = true;
-
-      while (queue.length) {
-        const v = queue.shift();
-        inQueue[v] = false;
-
-        for (let ei = 0; ei < graph[v].length; ei++) {
-          const e = graph[v][ei];
-          if (e.cap <= 0) continue;
-          const nd = dist[v] + e.cost;
-          if (nd < dist[e.to]) {
-            dist[e.to] = nd;
-            prevNode[e.to] = v;
-            prevEdge[e.to] = ei;
-            if (!inQueue[e.to]) {
-              queue.push(e.to);
-              inQueue[e.to] = true;
-            }
+          if(!inQueue[e.to]){
+            queue.push(e.to);
+            inQueue[e.to]=true;
           }
         }
       }
-
-      if (!Number.isFinite(dist[sink])) break;
-
-      let v = sink;
-      while (v !== source) {
-        const pv = prevNode[v];
-        const ei = prevEdge[v];
-        const e = graph[pv][ei];
-        e.cap -= 1;
-        graph[v][e.rev].cap += 1;
-        v = pv;
-      }
     }
 
-    let firstCount = 0;
-    let secondCount = 0;
-    let noneCount = 0;
+    if(!Number.isFinite(dist[sink]))break;
 
-    students.forEach((s, i) => {
-      const used = preferenceEdges[i].find(edge => edge.cap === 0);
-      if (used && used.meta) {
-        s.assigned = used.meta.placeId;
-        s.assignmentType = used.meta.type;
-        if (used.meta.type === "first") firstCount++;
-        else secondCount++;
-      } else {
-        s.assigned = "";
-        s.assignmentType = "none";
-        noneCount++;
-      }
-    });
-
-    renderStudents();
-    save();
-
-    const totalCapacity = activePlaces.reduce((sum, p) => sum + p.capacity, 0);
-    document.getElementById("summary").textContent =
-      `Resultat: ${firstCount} förstahandsval, ${secondCount} andrahandsval, ${noneCount} ej placerade. ` +
-      `Totalt ${nStudents} elever och ${totalCapacity} tillgängliga APL-platser.`;
+    let v=sink;
+    while(v!==source){
+      const from=prevNode[v];
+      const e=graph[from][prevEdge[v]];
+      e.cap--;
+      graph[v][e.rev].cap++;
+      v=from;
+    }
   }
 
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
+  unlocked.forEach((s,i)=>{
+    const used=preferenceEdges[i].find(e=>e.cap===0);
+    if(used){
+      s.assigned=used.meta.placeId;
+      s.assignmentType=used.meta.type;
+    }else{
+      s.assigned="";
+      s.assignmentType="none";
+    }
+  });
 
-  function escapeAttr(value) {
-    return escapeHtml(value);
-  }
+  activeFilter="all";
+  render();
+  save();
 
-  load();
+  const stats=getStats();
+  if(stats.conflict){
+    updateConflictMessage(stats);
+  }else{
+    showMessage(
+      `Fördelningen är klar: ${stats.first} förstahandsval, ${stats.second} andrahandsval, ${stats.none} ej placerade och ${stats.locked} låsta.`
+    );
+  }
+}
+
+function htmlEsc(value){
+  return String(value??"")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+function esc(value){
+  return htmlEsc(value);
+}
+
+load();
 </script>
 </body>
 </html>
