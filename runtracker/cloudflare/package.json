@@ -1,0 +1,13 @@
+{
+  "name": "runtracker-sync",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create runtracker",
+    "db:migrate": "wrangler d1 execute runtracker --remote --file=./schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.36.0"
+  }
+}

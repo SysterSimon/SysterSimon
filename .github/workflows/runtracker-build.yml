@@ -1,0 +1,26 @@
+name: RunTracker Android
+
+on:
+  push:
+    branches: ["feature/runtracker-mvp"]
+    paths: ["runtracker/**", ".github/workflows/runtracker-build.yml"]
+  pull_request:
+    paths: ["runtracker/**", ".github/workflows/runtracker-build.yml"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: runtracker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+      - name: Assemble debug APK
+        run: gradle :app:assembleDebug --stacktrace
