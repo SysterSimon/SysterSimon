@@ -44,10 +44,10 @@ h1{font-size:18px;margin:0;font-weight:700}
 .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .row + .row{margin-top:6px}
 label{font-size:12px;color:var(--muted)}
-select,input[type="text"],textarea,button{
+select,input[type="text"],input[type="number"],textarea,button{
   font:inherit;border:1px solid #cfd5dd;border-radius:6px;background:#fff;color:var(--text)
 }
-select,input[type="text"]{height:32px;padding:4px 8px}
+select,input[type="text"],input[type="number"]{height:32px;padding:4px 8px}
 button{height:32px;padding:4px 9px;cursor:pointer}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 button.ghost{background:#fff}
@@ -66,7 +66,9 @@ textarea{
   display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:7px
 }
 .field{display:flex;flex-direction:column;gap:3px;min-width:0}
-.field select{width:100%}
+.field select,.field input[type="number"]{width:100%}
+.group-field{max-width:112px}
+.toolbar button{white-space:nowrap}
 .actions{margin-top:7px;display:flex;gap:6px}
 .summary{
   display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px
@@ -122,7 +124,7 @@ textarea{
         <input id="fileInput" type="file" accept=".txt,.csv,.tsv,.json,text/*" hidden>
       </div>
 
-      <textarea id="source" placeholder="Eller klistra in en klasslista här…"></textarea>
+      <textarea id="source" placeholder="Klistra in en klasslista, tabell eller valfri löpande text här…"></textarea>
 
       <div class="settings">
         <div class="field">
@@ -137,6 +139,7 @@ textarea{
           <label for="separator">Tolkning</label>
           <select id="separator">
             <option value="auto">Auto</option>
+            <option value="free">Löpande text</option>
             <option value="lines">En person per rad</option>
             <option value="tab">Tab-separerat</option>
             <option value="semicolon">Semikolonseparerat</option>
@@ -183,6 +186,12 @@ textarea{
         <label class="chk"><input id="separate" type="checkbox"> Separata fält</label>
         <label class="chk"><input id="sort" type="checkbox" checked> Sortera</label>
         <label class="chk"><input id="dedupe" type="checkbox" checked> Ta bort dubletter</label>
+        <button id="shuffleBtn" class="ghost" disabled>Slumpa ordning</button>
+        <div class="field group-field">
+          <label for="groupCount">Antal grupper</label>
+          <input id="groupCount" type="number" min="1" max="50" value="1" inputmode="numeric" title="1 = ingen gruppindelning">
+        </div>
+        <button id="groupsBtn" class="ghost" disabled>Slumpa grupper</button>
       </div>
 
       <textarea id="preview" class="preview" readonly placeholder="Förhandsvisning…"></textarea>
@@ -209,6 +218,9 @@ const countEl = $("count");
 const preview = $("preview");
 
 let people = [];
+let nextPersonId = 1;
+let groupAssignments = new Map();
+let groupAssignmentCount = 1;
 
 const headerWords = new Set([
   "namn","förnamn","efternamn","elev","elever","klass","grupp","person",
@@ -219,6 +231,28 @@ const headerWords = new Set([
 const obviousNonNames = new Set([
   "ja","nej","ok","aktiv","inaktiv","saknas","totalt","summa","datum","tid"
 ]);
+
+const sentenceStarters = new Set([
+  "idag","igår","imorgon","sedan","därefter","efter","före","under","vid","när",
+  "om","men","och","eller","att","för","från","till","med","utan","en","ett","den",
+  "det","de","han","hon","hen","jag","vi","ni","du","patienten","eleven","läraren",
+  "personen","däremot","dessutom","senare","först","slutligen"
+]);
+
+const organizationWords = new Set([
+  "gymnasium","skola","kommun","region","sjukhus","vårdcentral","universitet",
+  "högskola","förvaltning","avdelning","program","klass","grupp","socialtjänst"
+]);
+
+function makePerson(firstName, lastName) {
+  return {
+    id: nextPersonId++,
+    firstName: cleanCell(firstName),
+    lastName: cleanCell(lastName),
+    selected: true,
+    shuffleRank: null
+  };
+}
 
 function cleanCell(s) {
   return String(s ?? "")
@@ -257,7 +291,7 @@ function splitName(full, order) {
     const [a, ...rest] = s.split(",");
     const b = rest.join(",").trim();
     if (looksLikeNamePhrase(a) && looksLikeNamePhrase(b)) {
-      return { firstName: b, lastName: a.trim(), selected: true };
+      return makePerson(b, a.trim());
     }
   }
 
@@ -265,18 +299,42 @@ function splitName(full, order) {
   if (parts.length < 2) return null;
 
   if (order === "last-first") {
-    return {
-      firstName: parts.slice(1).join(" "),
-      lastName: parts[0],
-      selected: true
-    };
+    return makePerson(parts.slice(1).join(" "), parts[0]);
   }
 
-  return {
-    firstName: parts[0],
-    lastName: parts.slice(1).join(" "),
-    selected: true
-  };
+  return makePerson(parts.slice(0, -1).join(" "), parts.at(-1));
+}
+
+function normalizeFreeTextCandidate(raw) {
+  let parts = cleanCell(raw).split(/\s+/).filter(Boolean);
+  while (parts.length && sentenceStarters.has(parts[0].toLocaleLowerCase("sv-SE"))) {
+    parts.shift();
+  }
+
+  const orgIndex = parts.findIndex(x => organizationWords.has(x.toLocaleLowerCase("sv-SE")));
+  if (orgIndex === 0 || orgIndex === 1) return null;
+  if (orgIndex > 1) parts = parts.slice(0, orgIndex);
+
+  if (parts.length < 2 || parts.length > 5) return null;
+  const phrase = parts.join(" ");
+  return looksLikeNamePhrase(phrase) ? phrase : null;
+}
+
+function extractNamesFromFreeText(text, inputOrder) {
+  const found = [];
+  const order = inputOrder === "auto" ? "first-last" : inputOrder;
+
+  // Två till fem ord med versal begynnelse. Punkt/komma bryter sekvensen,
+  // vilket gör att namn inne i vanlig löptext kan hittas utan extern AI.
+  const rx = /\b(\p{Lu}[\p{L}'’.-]+(?:\s+(?:(?:af|av|de|del|der|di|la|le|van|von)\s+)?\p{Lu}[\p{L}'’.-]+){1,4})\b/gu;
+  for (const match of text.matchAll(rx)) {
+    const phrase = normalizeFreeTextCandidate(match[1]);
+    if (!phrase) continue;
+    const p = splitName(phrase, order);
+    if (p) found.push(p);
+  }
+
+  return found;
 }
 
 function detectDelimiter(text) {
@@ -311,14 +369,13 @@ function extractNames() {
     return;
   }
 
-  let mode = $("separator").value;
-  if (mode === "auto") mode = detectDelimiter(text);
+  const requestedMode = $("separator").value;
+  let mode = requestedMode === "auto" ? detectDelimiter(text) : requestedMode;
   const inputOrder = $("inputOrder").value;
-
   const rows = text.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
   const found = [];
 
-  if (mode !== "lines") {
+  if (mode !== "free" && mode !== "lines") {
     const delimiter = delimChar(mode);
     const parsed = rows.map(r => r.split(delimiter).map(cleanCell));
     const header = parsed.length ? inferHeader(parsed[0]) : {isHeader:false,firstIdx:-1,lastIdx:-1,nameIdx:-1};
@@ -331,7 +388,7 @@ function extractNames() {
         const first = cleanCell(cols[header.firstIdx]);
         const last = cleanCell(cols[header.lastIdx]);
         if (looksLikeNamePhrase(first) && looksLikeNamePhrase(last)) {
-          found.push({firstName:first,lastName:last,selected:true});
+          found.push(makePerson(first, last));
           continue;
         }
       }
@@ -345,8 +402,8 @@ function extractNames() {
       if (nameCells.length >= 2 && nameCells[0].split(/\s+/).length === 1 && nameCells[1].split(/\s+/).length === 1) {
         const order = inputOrder === "auto" ? "first-last" : inputOrder;
         found.push(order === "last-first"
-          ? {firstName:nameCells[1],lastName:nameCells[0],selected:true}
-          : {firstName:nameCells[0],lastName:nameCells[1],selected:true});
+          ? makePerson(nameCells[1], nameCells[0])
+          : makePerson(nameCells[0], nameCells[1]));
         continue;
       }
 
@@ -356,7 +413,9 @@ function extractNames() {
         if (p) found.push(p);
       }
     }
-  } else {
+  }
+
+  if (mode === "lines" || requestedMode === "auto") {
     for (const raw of rows) {
       const line = cleanCell(raw.replace(/^[•*-]\s*/, ""));
       if (!looksLikeNamePhrase(line)) continue;
@@ -365,7 +424,12 @@ function extractNames() {
     }
   }
 
+  // Kör även fritextigenkänning så namn kan hittas mitt i meningar.
+  found.push(...extractNamesFromFreeText(text, inputOrder));
+
   people = dedupePeople(found);
+  groupAssignments = new Map();
+  groupAssignmentCount = 1;
   renderPeople();
   setStatus(`Hittade ${people.length} möjliga namn. Granska listan före export.`, people.length ? "ok" : "err");
 }
@@ -397,10 +461,26 @@ function renderPeople() {
       `;
 
       const [check, first, last, remove] = row.children;
-      check.addEventListener("change", () => { p.selected = check.checked; updateOutput(); });
-      first.addEventListener("input", () => { p.firstName = first.value.trimStart(); updateOutput(); });
-      last.addEventListener("input", () => { p.lastName = last.value.trimStart(); updateOutput(); });
-      remove.addEventListener("click", () => { people.splice(idx,1); renderPeople(); });
+      check.addEventListener("change", () => {
+        p.selected = check.checked;
+        groupAssignments = new Map();
+        updateOutput();
+      });
+      first.addEventListener("input", () => {
+        p.firstName = first.value.trimStart();
+        groupAssignments = new Map();
+        updateOutput();
+      });
+      last.addEventListener("input", () => {
+        p.lastName = last.value.trimStart();
+        groupAssignments = new Map();
+        updateOutput();
+      });
+      remove.addEventListener("click", () => {
+        people.splice(idx,1);
+        groupAssignments = new Map();
+        renderPeople();
+      });
 
       nameList.appendChild(row);
     });
@@ -411,6 +491,8 @@ function renderPeople() {
   $("copyBtn").disabled = !enabled;
   $("selectAllBtn").disabled = !enabled;
   $("selectNoneBtn").disabled = !enabled;
+  $("shuffleBtn").disabled = !enabled;
+  $("groupsBtn").disabled = !enabled;
   updateOutput();
 }
 
@@ -420,13 +502,22 @@ function escapeHtml(s) {
   })[ch]);
 }
 
-function selectedPeople() {
+function baseSelectedPeople() {
   let list = people
     .filter(p => p.selected && p.firstName.trim() && p.lastName.trim())
-    .map(p => ({firstName:p.firstName.trim(),lastName:p.lastName.trim()}));
+    .map(p => ({
+      id:p.id,
+      firstName:p.firstName.trim(),
+      lastName:p.lastName.trim(),
+      shuffleRank:p.shuffleRank
+    }));
 
-  if ($("dedupe").checked) list = dedupePeople(list).map(p => ({firstName:p.firstName,lastName:p.lastName}));
+  if ($("dedupe").checked) list = dedupePeople(list);
+  return list;
+}
 
+function orderedSelectedPeople() {
+  const list = baseSelectedPeople();
   if ($("sort").checked) {
     const order = $("outputOrder").value;
     list.sort((a,b) => {
@@ -434,8 +525,83 @@ function selectedPeople() {
       const bb = order === "first-last" ? b.firstName + " " + b.lastName : b.lastName + " " + b.firstName;
       return aa.localeCompare(bb, "sv-SE", {sensitivity:"base"});
     });
+  } else if (list.some(p => p.shuffleRank !== null)) {
+    list.sort((a,b) => (a.shuffleRank ?? Number.MAX_SAFE_INTEGER) - (b.shuffleRank ?? Number.MAX_SAFE_INTEGER));
   }
   return list;
+}
+
+function randomInt(max) {
+  if (max <= 1) return 0;
+  if (globalThis.crypto?.getRandomValues) {
+    const arr = new Uint32Array(1);
+    crypto.getRandomValues(arr);
+    return arr[0] % max;
+  }
+  return Math.floor(Math.random() * max);
+}
+
+function shuffleArray(list) {
+  const arr = [...list];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function shuffleOutputOrder() {
+  const selectedIds = shuffleArray(baseSelectedPeople().map(p => p.id));
+  const rank = new Map(selectedIds.map((id, i) => [id, i]));
+  people.forEach(p => {
+    if (rank.has(p.id)) p.shuffleRank = rank.get(p.id);
+  });
+  $("sort").checked = false;
+  updateOutput();
+  setStatus("Outputordningen har slumpats.", "ok");
+}
+
+function requestedGroupCount() {
+  const n = Math.floor(Number($("groupCount").value) || 1);
+  return Math.max(1, Math.min(50, n));
+}
+
+function effectiveGroupCount(listLength) {
+  if (!listLength) return 1;
+  return Math.min(requestedGroupCount(), listLength);
+}
+
+function regenerateGroups(showStatus = true) {
+  const list = baseSelectedPeople();
+  const count = effectiveGroupCount(list.length);
+  groupAssignments = new Map();
+  groupAssignmentCount = count;
+
+  if (count > 1) {
+    const shuffled = shuffleArray(list);
+    shuffled.forEach((p, i) => groupAssignments.set(p.id, (i % count) + 1));
+  }
+
+  updateOutput(false);
+  if (showStatus) {
+    if (count > 1) setStatus(`${list.length} namn har slumpats i ${count} så jämna grupper som möjligt.`, "ok");
+    else setStatus("Ange minst 2 grupper för gruppindelning.", "");
+  }
+}
+
+function ensureGroups(list) {
+  const count = effectiveGroupCount(list.length);
+  if (count <= 1) return 1;
+  const ids = new Set(list.map(p => p.id));
+  const valid = groupAssignmentCount === count &&
+    groupAssignments.size === ids.size &&
+    [...ids].every(id => groupAssignments.has(id));
+  if (!valid) {
+    groupAssignments = new Map();
+    groupAssignmentCount = count;
+    shuffleArray(list).forEach((p, i) => groupAssignments.set(p.id, (i % count) + 1));
+  }
+  return count;
 }
 
 function displayName(p) {
@@ -454,51 +620,86 @@ function csvEscape(value, sep) {
 }
 
 function buildOutput() {
-  const list = selectedPeople();
+  const list = orderedSelectedPeople();
   const format = $("format").value;
   const separate = $("separate").checked;
   const order = $("outputOrder").value;
+  const groupCount = ensureGroups(list);
+  const withGroups = groupCount > 1;
+  const rows = list.map(p => ({...p, group: withGroups ? groupAssignments.get(p.id) : null}));
 
   if (format === "txt") {
-    if (!separate) return list.map(displayName).join("\n");
-    const sep = "\t";
-    const headers = order === "first-last" ? ["firstName","lastName"] : ["lastName","firstName"];
-    return [
-      headers.join(sep),
-      ...list.map(p => order === "first-last"
-        ? [p.firstName,p.lastName].join(sep)
-        : [p.lastName,p.firstName].join(sep))
-    ].join("\n");
+    if (!withGroups) {
+      if (!separate) return rows.map(displayName).join("\n");
+      const headers = order === "first-last" ? ["firstName","lastName"] : ["lastName","firstName"];
+      return [
+        headers.join("\t"),
+        ...rows.map(p => order === "first-last"
+          ? [p.firstName,p.lastName].join("\t")
+          : [p.lastName,p.firstName].join("\t"))
+      ].join("\n");
+    }
+
+    const blocks = [];
+    for (let g = 1; g <= groupCount; g++) {
+      const groupRows = rows.filter(p => p.group === g);
+      const lines = separate
+        ? groupRows.map(p => order === "first-last"
+            ? [p.firstName,p.lastName].join("\t")
+            : [p.lastName,p.firstName].join("\t"))
+        : groupRows.map(displayName);
+      blocks.push(["Grupp " + g, ...lines].join("\n"));
+    }
+    return blocks.join("\n\n");
   }
 
   if (format === "csv" || format === "tsv") {
     const sep = format === "csv" ? "," : "\t";
+    let headers;
+    let dataRows;
+
     if (!separate) {
-      return ["name", ...list.map(p => displayName(p))].map(x => csvEscape(x, sep)).join("\n");
+      headers = withGroups ? ["group","name"] : ["name"];
+      dataRows = rows.map(p => withGroups ? [p.group, displayName(p)] : [displayName(p)]);
+    } else {
+      const nameHeaders = order === "first-last" ? ["firstName","lastName"] : ["lastName","firstName"];
+      headers = withGroups ? ["group", ...nameHeaders] : nameHeaders;
+      dataRows = rows.map(p => {
+        const names = order === "first-last" ? [p.firstName,p.lastName] : [p.lastName,p.firstName];
+        return withGroups ? [p.group, ...names] : names;
+      });
     }
-    const headers = order === "first-last" ? ["firstName","lastName"] : ["lastName","firstName"];
-    const rows = list.map(p => order === "first-last"
-      ? [p.firstName,p.lastName]
-      : [p.lastName,p.firstName]);
-    return [headers, ...rows]
+
+    return [headers, ...dataRows]
       .map(r => r.map(v => csvEscape(v, sep)).join(sep))
       .join("\n");
   }
 
   if (format === "json") {
-    if (!separate) return JSON.stringify(list.map(displayName), null, 2);
-    const arr = list.map(p => order === "first-last"
-      ? {firstName:p.firstName,lastName:p.lastName}
-      : {lastName:p.lastName,firstName:p.firstName});
+    if (!separate) {
+      return JSON.stringify(rows.map(p => withGroups
+        ? {group:p.group,name:displayName(p)}
+        : displayName(p)), null, 2);
+    }
+
+    const arr = rows.map(p => {
+      const names = order === "first-last"
+        ? {firstName:p.firstName,lastName:p.lastName}
+        : {lastName:p.lastName,firstName:p.firstName};
+      return withGroups ? {group:p.group,...names} : names;
+    });
     return JSON.stringify(arr, null, 2);
   }
 
   return "";
 }
 
-function updateOutput() {
-  const list = selectedPeople();
-  countEl.textContent = `${list.length} namn`;
+function updateOutput(updateGroups = true) {
+  const list = orderedSelectedPeople();
+  const groupCount = updateGroups ? ensureGroups(list) : effectiveGroupCount(list.length);
+  countEl.textContent = groupCount > 1
+    ? `${list.length} namn · ${groupCount} grupper`
+    : `${list.length} namn`;
   preview.value = buildOutput();
 }
 
@@ -540,6 +741,9 @@ $("clearBtn").addEventListener("click", () => {
   source.value = "";
   fileInput.value = "";
   people = [];
+  groupAssignments = new Map();
+  groupAssignmentCount = 1;
+  $("groupCount").value = 1;
   renderPeople();
   setStatus("Rensat. Ingen data sparas av verktyget.");
 });
@@ -548,12 +752,25 @@ $("clearBtn").addEventListener("click", () => {
   $(id).addEventListener("change", updateOutput);
 });
 
+$("groupCount").addEventListener("change", () => {
+  groupAssignments = new Map();
+  regenerateGroups(false);
+});
+
+$("shuffleBtn").addEventListener("click", shuffleOutputOrder);
+$("groupsBtn").addEventListener("click", () => {
+  if (requestedGroupCount() < 2) $("groupCount").value = 2;
+  regenerateGroups(true);
+});
+
 $("selectAllBtn").addEventListener("click", () => {
   people.forEach(p => p.selected = true);
+  groupAssignments = new Map();
   renderPeople();
 });
 $("selectNoneBtn").addEventListener("click", () => {
   people.forEach(p => p.selected = false);
+  groupAssignments = new Map();
   renderPeople();
 });
 
@@ -576,7 +793,7 @@ $("downloadBtn").addEventListener("click", () => {
   const blob = new Blob(["\ufeff" + buildOutput()], {type:mime});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "namnlista." + format;
+  a.download = requestedGroupCount() > 1 ? "grupper." + format : "namnlista." + format;
   document.body.appendChild(a);
   a.click();
   a.remove();
