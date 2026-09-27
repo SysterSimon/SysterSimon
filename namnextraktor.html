@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lokal namnextraktor</title>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f4f6f8;
+  --panel:#fff;
+  --line:#d9dee5;
+  --text:#17202a;
+  --muted:#667085;
+  --accent:#2357d8;
+  --danger:#b42318;
+  --ok:#067647;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font:14px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:var(--text);
+  background:var(--bg);
+}
+.app{max-width:1180px;margin:0 auto;padding:12px}
+.top{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin-bottom:8px
+}
+h1{font-size:18px;margin:0;font-weight:700}
+.badge{
+  font-size:12px;color:var(--ok);background:#ecfdf3;border:1px solid #abefc6;
+  padding:3px 7px;border-radius:999px;white-space:nowrap
+}
+.grid{
+  display:grid;grid-template-columns:minmax(330px,.9fr) minmax(430px,1.1fr);gap:8px
+}
+.panel{
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;
+  min-width:0
+}
+.panel h2{font-size:14px;margin:0 0 7px}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.row + .row{margin-top:6px}
+label{font-size:12px;color:var(--muted)}
+select,input[type="text"],textarea,button{
+  font:inherit;border:1px solid #cfd5dd;border-radius:6px;background:#fff;color:var(--text)
+}
+select,input[type="text"]{height:32px;padding:4px 8px}
+button{height:32px;padding:4px 9px;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.ghost{background:#fff}
+button.danger{color:var(--danger)}
+button:disabled{opacity:.45;cursor:not-allowed}
+textarea{
+  width:100%;height:170px;resize:vertical;padding:8px;line-height:1.3
+}
+.drop{
+  border:1px dashed #aeb7c4;border-radius:7px;padding:8px;margin-bottom:6px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fafbfc
+}
+.drop.drag{border-color:var(--accent);background:#eef4ff}
+.filehint{font-size:12px;color:var(--muted)}
+.settings{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:7px
+}
+.field{display:flex;flex-direction:column;gap:3px;min-width:0}
+.field select{width:100%}
+.actions{margin-top:7px;display:flex;gap:6px}
+.summary{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px
+}
+.meta{font-size:12px;color:var(--muted)}
+.name-list{
+  border:1px solid var(--line);border-radius:7px;overflow:auto;max-height:394px;background:#fff
+}
+.name-row{
+  display:grid;grid-template-columns:24px minmax(110px,1fr) minmax(130px,1fr) 32px;
+  gap:5px;align-items:center;padding:5px 6px;border-bottom:1px solid #edf0f3
+}
+.name-row:last-child{border-bottom:0}
+.name-row input[type="text"]{width:100%;height:30px;padding:3px 6px}
+.name-row button{width:30px;height:30px;padding:0}
+.empty{padding:24px 12px;text-align:center;color:var(--muted)}
+.toolbar{
+  display:flex;align-items:end;gap:6px;flex-wrap:wrap;margin-top:7px
+}
+.toolbar .field{min-width:145px}
+.chk{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text);height:32px}
+.preview{
+  width:100%;height:112px;font:12px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace;
+  margin-top:7px;background:#fbfcfe
+}
+.small{font-size:12px;color:var(--muted)}
+.status{min-height:18px;margin-top:5px;font-size:12px;color:var(--muted)}
+.status.ok{color:var(--ok)}
+.status.err{color:var(--danger)}
+@media(max-width:780px){
+  .grid{grid-template-columns:1fr}
+  textarea{height:140px}
+  .name-list{max-height:320px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <h1>Lokal namnextraktor</h1>
+    <div class="badge">Körs lokalt i webbläsaren</div>
+  </div>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>1. Läs in</h2>
+      <div id="drop" class="drop">
+        <div>
+          <strong>Släpp fil här</strong>
+          <div class="filehint">TXT, CSV, TSV eller annan textfil</div>
+        </div>
+        <button id="chooseBtn" class="ghost">Välj fil</button>
+        <input id="fileInput" type="file" accept=".txt,.csv,.tsv,.json,text/*" hidden>
+      </div>
+
+      <textarea id="source" placeholder="Eller klistra in en klasslista här…"></textarea>
+
+      <div class="settings">
+        <div class="field">
+          <label for="inputOrder">Namnordning i indata</label>
+          <select id="inputOrder">
+            <option value="auto">Auto</option>
+            <option value="first-last">Förnamn Efternamn</option>
+            <option value="last-first">Efternamn Förnamn</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="separator">Tolkning</label>
+          <select id="separator">
+            <option value="auto">Auto</option>
+            <option value="lines">En person per rad</option>
+            <option value="tab">Tab-separerat</option>
+            <option value="semicolon">Semikolonseparerat</option>
+            <option value="comma">Kommaseparerat</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="extractBtn" class="primary">Extrahera namn</button>
+        <button id="clearBtn" class="ghost">Rensa</button>
+      </div>
+      <div id="status" class="status">Ingen data lämnar webbläsaren.</div>
+    </section>
+
+    <section class="panel">
+      <div class="summary">
+        <h2>2. Granska och exportera</h2>
+        <div id="count" class="meta">0 namn</div>
+      </div>
+
+      <div id="nameList" class="name-list">
+        <div class="empty">Extraherade namn visas här.</div>
+      </div>
+
+      <div class="toolbar">
+        <div class="field">
+          <label for="outputOrder">Namnordning</label>
+          <select id="outputOrder">
+            <option value="first-last">Förnamn Efternamn</option>
+            <option value="last-first">Efternamn Förnamn</option>
+            <option value="last-comma-first">Efternamn, Förnamn</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="format">Outputformat</label>
+          <select id="format">
+            <option value="txt">TXT</option>
+            <option value="csv">CSV</option>
+            <option value="tsv">TSV</option>
+            <option value="json">JSON</option>
+          </select>
+        </div>
+        <label class="chk"><input id="separate" type="checkbox"> Separata fält</label>
+        <label class="chk"><input id="sort" type="checkbox" checked> Sortera</label>
+        <label class="chk"><input id="dedupe" type="checkbox" checked> Ta bort dubletter</label>
+      </div>
+
+      <textarea id="preview" class="preview" readonly placeholder="Förhandsvisning…"></textarea>
+
+      <div class="actions">
+        <button id="downloadBtn" class="primary" disabled>Exportera fil</button>
+        <button id="copyBtn" class="ghost" disabled>Kopiera</button>
+        <button id="selectAllBtn" class="ghost" disabled>Markera alla</button>
+        <button id="selectNoneBtn" class="ghost" disabled>Avmarkera</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+const source = $("source");
+const fileInput = $("fileInput");
+const nameList = $("nameList");
+const statusEl = $("status");
+const countEl = $("count");
+const preview = $("preview");
+
+let people = [];
+
+const headerWords = new Set([
+  "namn","förnamn","efternamn","elev","elever","klass","grupp","person",
+  "email","e-post","epost","telefon","mobil","id","personnummer","pnr",
+  "närvaro","frånvaro","program","skola","mentor"
+]);
+
+const obviousNonNames = new Set([
+  "ja","nej","ok","aktiv","inaktiv","saknas","totalt","summa","datum","tid"
+]);
+
+function cleanCell(s) {
+  return String(s ?? "")
+    .replace(/^["']|["']$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function titleishToken(token) {
+  const t = token.replace(/[.'’\-]/g, "");
+  if (!t || /\d/.test(t)) return false;
+  if (!/^\p{L}[\p{L}'’.-]*$/u.test(token)) return false;
+  const first = [...token][0];
+  return first === first.toLocaleUpperCase("sv-SE");
+}
+
+function looksLikeNamePhrase(text) {
+  const s = cleanCell(text);
+  if (!s || s.length < 3 || s.length > 80) return false;
+  if (/[0-9@:/\\]/.test(s)) return false;
+  const lower = s.toLocaleLowerCase("sv-SE");
+  if (headerWords.has(lower) || obviousNonNames.has(lower)) return false;
+
+  const parts = s.split(/\s+/).filter(Boolean);
+  if (parts.length < 1 || parts.length > 5) return false;
+  if (!parts.every(titleishToken)) return false;
+
+  return true;
+}
+
+function splitName(full, order) {
+  let s = cleanCell(full).replace(/^\d+[.)-]?\s*/, "");
+  if (!s) return null;
+
+  if (s.includes(",")) {
+    const [a, ...rest] = s.split(",");
+    const b = rest.join(",").trim();
+    if (looksLikeNamePhrase(a) && looksLikeNamePhrase(b)) {
+      return { firstName: b, lastName: a.trim(), selected: true };
+    }
+  }
+
+  const parts = s.split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return null;
+
+  if (order === "last-first") {
+    return {
+      firstName: parts.slice(1).join(" "),
+      lastName: parts[0],
+      selected: true
+    };
+  }
+
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+    selected: true
+  };
+}
+
+function detectDelimiter(text) {
+  const sample = text.split(/\r?\n/).slice(0, 8).join("\n");
+  const counts = {
+    tab: (sample.match(/\t/g) || []).length,
+    semicolon: (sample.match(/;/g) || []).length,
+    comma: (sample.match(/,/g) || []).length
+  };
+  const best = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+  return best && best[1] > 0 ? best[0] : "lines";
+}
+
+function delimChar(mode) {
+  return mode === "tab" ? "\t" : mode === "semicolon" ? ";" : mode === "comma" ? "," : null;
+}
+
+function inferHeader(columns) {
+  const lowered = columns.map(x => cleanCell(x).toLocaleLowerCase("sv-SE"));
+  const firstIdx = lowered.findIndex(x => /^(förnamn|first\s*name|firstname)$/.test(x));
+  const lastIdx = lowered.findIndex(x => /^(efternamn|last\s*name|lastname|surname)$/.test(x));
+  const nameIdx = lowered.findIndex(x => /^(namn|name|elev)$/.test(x));
+  return { firstIdx, lastIdx, nameIdx, isHeader: firstIdx >= 0 || lastIdx >= 0 || nameIdx >= 0 };
+}
+
+function extractNames() {
+  const text = source.value.trim();
+  if (!text) {
+    people = [];
+    renderPeople();
+    setStatus("Klistra in text eller välj en fil först.", "err");
+    return;
+  }
+
+  let mode = $("separator").value;
+  if (mode === "auto") mode = detectDelimiter(text);
+  const inputOrder = $("inputOrder").value;
+
+  const rows = text.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+  const found = [];
+
+  if (mode !== "lines") {
+    const delimiter = delimChar(mode);
+    const parsed = rows.map(r => r.split(delimiter).map(cleanCell));
+    const header = parsed.length ? inferHeader(parsed[0]) : {isHeader:false,firstIdx:-1,lastIdx:-1,nameIdx:-1};
+    const start = header.isHeader ? 1 : 0;
+
+    for (let i = start; i < parsed.length; i++) {
+      const cols = parsed[i];
+
+      if (header.firstIdx >= 0 && header.lastIdx >= 0) {
+        const first = cleanCell(cols[header.firstIdx]);
+        const last = cleanCell(cols[header.lastIdx]);
+        if (looksLikeNamePhrase(first) && looksLikeNamePhrase(last)) {
+          found.push({firstName:first,lastName:last,selected:true});
+          continue;
+        }
+      }
+
+      if (header.nameIdx >= 0) {
+        const p = splitName(cols[header.nameIdx], inputOrder === "auto" ? "first-last" : inputOrder);
+        if (p) { found.push(p); continue; }
+      }
+
+      const nameCells = cols.filter(looksLikeNamePhrase);
+      if (nameCells.length >= 2 && nameCells[0].split(/\s+/).length === 1 && nameCells[1].split(/\s+/).length === 1) {
+        const order = inputOrder === "auto" ? "first-last" : inputOrder;
+        found.push(order === "last-first"
+          ? {firstName:nameCells[1],lastName:nameCells[0],selected:true}
+          : {firstName:nameCells[0],lastName:nameCells[1],selected:true});
+        continue;
+      }
+
+      const full = nameCells.find(x => x.split(/\s+/).length >= 2);
+      if (full) {
+        const p = splitName(full, inputOrder === "auto" ? "first-last" : inputOrder);
+        if (p) found.push(p);
+      }
+    }
+  } else {
+    for (const raw of rows) {
+      const line = cleanCell(raw.replace(/^[•*-]\s*/, ""));
+      if (!looksLikeNamePhrase(line)) continue;
+      const p = splitName(line, inputOrder === "auto" ? "first-last" : inputOrder);
+      if (p) found.push(p);
+    }
+  }
+
+  people = dedupePeople(found);
+  renderPeople();
+  setStatus(`Hittade ${people.length} möjliga namn. Granska listan före export.`, people.length ? "ok" : "err");
+}
+
+function dedupePeople(list) {
+  const seen = new Set();
+  return list.filter(p => {
+    const key = (p.firstName + "|" + p.lastName).toLocaleLowerCase("sv-SE").trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function renderPeople() {
+  nameList.innerHTML = "";
+
+  if (!people.length) {
+    nameList.innerHTML = '<div class="empty">Extraherade namn visas här.</div>';
+  } else {
+    people.forEach((p, idx) => {
+      const row = document.createElement("div");
+      row.className = "name-row";
+      row.innerHTML = `
+        <input type="checkbox" ${p.selected ? "checked" : ""} aria-label="Ta med">
+        <input type="text" value="${escapeHtml(p.firstName)}" aria-label="Förnamn">
+        <input type="text" value="${escapeHtml(p.lastName)}" aria-label="Efternamn">
+        <button class="danger" title="Ta bort" aria-label="Ta bort">×</button>
+      `;
+
+      const [check, first, last, remove] = row.children;
+      check.addEventListener("change", () => { p.selected = check.checked; updateOutput(); });
+      first.addEventListener("input", () => { p.firstName = first.value.trimStart(); updateOutput(); });
+      last.addEventListener("input", () => { p.lastName = last.value.trimStart(); updateOutput(); });
+      remove.addEventListener("click", () => { people.splice(idx,1); renderPeople(); });
+
+      nameList.appendChild(row);
+    });
+  }
+
+  const enabled = people.length > 0;
+  $("downloadBtn").disabled = !enabled;
+  $("copyBtn").disabled = !enabled;
+  $("selectAllBtn").disabled = !enabled;
+  $("selectNoneBtn").disabled = !enabled;
+  updateOutput();
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, ch => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  })[ch]);
+}
+
+function selectedPeople() {
+  let list = people
+    .filter(p => p.selected && p.firstName.trim() && p.lastName.trim())
+    .map(p => ({firstName:p.firstName.trim(),lastName:p.lastName.trim()}));
+
+  if ($("dedupe").checked) list = dedupePeople(list).map(p => ({firstName:p.firstName,lastName:p.lastName}));
+
+  if ($("sort").checked) {
+    const order = $("outputOrder").value;
+    list.sort((a,b) => {
+      const aa = order === "first-last" ? a.firstName + " " + a.lastName : a.lastName + " " + a.firstName;
+      const bb = order === "first-last" ? b.firstName + " " + b.lastName : b.lastName + " " + b.firstName;
+      return aa.localeCompare(bb, "sv-SE", {sensitivity:"base"});
+    });
+  }
+  return list;
+}
+
+function displayName(p) {
+  const order = $("outputOrder").value;
+  if (order === "last-first") return `${p.lastName} ${p.firstName}`;
+  if (order === "last-comma-first") return `${p.lastName}, ${p.firstName}`;
+  return `${p.firstName} ${p.lastName}`;
+}
+
+function csvEscape(value, sep) {
+  const s = String(value);
+  if (s.includes('"') || s.includes("\n") || s.includes("\r") || s.includes(sep)) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function buildOutput() {
+  const list = selectedPeople();
+  const format = $("format").value;
+  const separate = $("separate").checked;
+  const order = $("outputOrder").value;
+
+  if (format === "txt") {
+    if (!separate) return list.map(displayName).join("\n");
+    const sep = "\t";
+    const headers = order === "first-last" ? ["firstName","lastName"] : ["lastName","firstName"];
+    return [
+      headers.join(sep),
+      ...list.map(p => order === "first-last"
+        ? [p.firstName,p.lastName].join(sep)
+        : [p.lastName,p.firstName].join(sep))
+    ].join("\n");
+  }
+
+  if (format === "csv" || format === "tsv") {
+    const sep = format === "csv" ? "," : "\t";
+    if (!separate) {
+      return ["name", ...list.map(p => displayName(p))].map(x => csvEscape(x, sep)).join("\n");
+    }
+    const headers = order === "first-last" ? ["firstName","lastName"] : ["lastName","firstName"];
+    const rows = list.map(p => order === "first-last"
+      ? [p.firstName,p.lastName]
+      : [p.lastName,p.firstName]);
+    return [headers, ...rows]
+      .map(r => r.map(v => csvEscape(v, sep)).join(sep))
+      .join("\n");
+  }
+
+  if (format === "json") {
+    if (!separate) return JSON.stringify(list.map(displayName), null, 2);
+    const arr = list.map(p => order === "first-last"
+      ? {firstName:p.firstName,lastName:p.lastName}
+      : {lastName:p.lastName,firstName:p.firstName});
+    return JSON.stringify(arr, null, 2);
+  }
+
+  return "";
+}
+
+function updateOutput() {
+  const list = selectedPeople();
+  countEl.textContent = `${list.length} namn`;
+  preview.value = buildOutput();
+}
+
+function setStatus(msg, type="") {
+  statusEl.textContent = msg;
+  statusEl.className = "status" + (type ? " " + type : "");
+}
+
+async function readFile(file) {
+  try {
+    const text = await file.text();
+    source.value = text;
+    setStatus(`${file.name} inläst lokalt.`, "ok");
+    extractNames();
+  } catch {
+    setStatus("Filen kunde inte läsas som text.", "err");
+  }
+}
+
+$("chooseBtn").addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  if (fileInput.files[0]) readFile(fileInput.files[0]);
+});
+
+const drop = $("drop");
+["dragenter","dragover"].forEach(type => drop.addEventListener(type, e => {
+  e.preventDefault(); drop.classList.add("drag");
+}));
+["dragleave","drop"].forEach(type => drop.addEventListener(type, e => {
+  e.preventDefault(); drop.classList.remove("drag");
+}));
+drop.addEventListener("drop", e => {
+  const f = e.dataTransfer.files[0];
+  if (f) readFile(f);
+});
+
+$("extractBtn").addEventListener("click", extractNames);
+$("clearBtn").addEventListener("click", () => {
+  source.value = "";
+  fileInput.value = "";
+  people = [];
+  renderPeople();
+  setStatus("Rensat. Ingen data sparas av verktyget.");
+});
+
+["outputOrder","format","separate","sort","dedupe"].forEach(id => {
+  $(id).addEventListener("change", updateOutput);
+});
+
+$("selectAllBtn").addEventListener("click", () => {
+  people.forEach(p => p.selected = true);
+  renderPeople();
+});
+$("selectNoneBtn").addEventListener("click", () => {
+  people.forEach(p => p.selected = false);
+  renderPeople();
+});
+
+$("copyBtn").addEventListener("click", async () => {
+  const text = buildOutput();
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus("Kopierat till urklipp.", "ok");
+  } catch {
+    preview.focus();
+    preview.select();
+    document.execCommand("copy");
+    setStatus("Kopierat till urklipp.", "ok");
+  }
+});
+
+$("downloadBtn").addEventListener("click", () => {
+  const format = $("format").value;
+  const mime = format === "json" ? "application/json;charset=utf-8" : "text/plain;charset=utf-8";
+  const blob = new Blob(["\ufeff" + buildOutput()], {type:mime});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "namnlista." + format;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  setStatus("Export klar.", "ok");
+});
+
+renderPeople();
+</script>
+</body>
+</html>
